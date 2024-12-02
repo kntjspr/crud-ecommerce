@@ -50,26 +50,31 @@ if (!$user) {
                     <li class="nav-item">
                         <a class="nav-link" href="products.php">Products</a>
                     </li>
-                    <?php if(isset($_SESSION['employee_id'])): ?>
-                        <?php if(isset($_SESSION['is_admin']) && $_SESSION['is_admin']): ?>
-                            <li class="nav-item">
-                                <a class="nav-link" href="admin_dashboard.php">Admin Dashboard</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="manage_products.php">Manage Products</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="employee_register.php">Register Employee</a>
-                            </li>
-                        <?php endif; ?>
+                    <?php if(isset($_SESSION['is_admin']) && $_SESSION['is_admin']): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="admin_dashboard.php">Admin Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="manage_products.php">Manage Products</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="employee_register.php">Register Employee</a>
+                        </li>
                     <?php endif; ?>
                 </ul>
                 <ul class="navbar-nav">
+                    <?php if(isset($_SESSION['user_type']) && $_SESSION['user_type'] === 'customer'): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="cart.php">Cart</a>
+                        </li>
+                    <?php endif; ?>
+                    <?php if(isset($_SESSION['user_name'])): ?>
+                        <li class="nav-item">
+                            <span class="nav-link">Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
+                        </li>
+                    <?php endif; ?>
                     <li class="nav-item">
-                        <span class="nav-link">Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="profile.php">Profile</a>
+                        <a class="nav-link" href="profile.php">Profile</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="logout.php">Logout</a>

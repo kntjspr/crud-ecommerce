@@ -2,57 +2,54 @@
 session_start();
 require_once 'config/database.php';
 
-if (!isset($_GET['order_id'])) {
+// Check if user is logged in as customer
+if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'customer') {
+    header("Location: login.php");
+    exit();
+}
+
+// Get order details with all related information
+$stmt = $pdo->prepare("
+    SELECT o.*, 
+           c.First_Name, c.Last_Name,
+           sm.Method_Name as Shipping_Method_Name,
+           sm.Estimated_Delivery_Time,
+           s.Shipping_Status,
+           sa.Street, sa.Barangay, sa.Town_City, sa.Province, sa.Region, sa.Postal_Code,
+           pm.Method_Name as Payment_Method_Name,
+           pm.Provider as Payment_Provider,
+           p.Payment_Status,
+           p.Payment_Date
+    FROM `Order` o
+    JOIN Customer c ON o.Customer_ID = c.Customer_ID
+    JOIN Transaction t ON o.Order_ID = t.Order_ID
+    JOIN Shipping s ON t.Shipping_ID = s.Shipping_ID
+    JOIN Shipping_Method sm ON s.Shipping_Method_ID = sm.Shipping_Method_ID
+    JOIN Shipping_Address sa ON s.Shipping_Address_ID = sa.Shipping_Address_ID
+    JOIN Payment p ON t.Payment_ID = p.Payment_ID
+    JOIN Payment_Method pm ON p.Payment_Method_ID = pm.Payment_Method_ID
+    WHERE o.Order_ID = ? AND o.Customer_ID = ?
+    LIMIT 1
+");
+
+$stmt->execute([$_GET['order_id'], $_SESSION['customer_id']]);
+$order = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// If order not found or doesn't belong to customer
+if (!$order) {
     header("Location: index.php");
     exit();
 }
 
-$order_id = (int)$_GET['order_id'];
-
-// Get order details
-$stmt = $pdo->prepare("
-    SELECT o.*, c.First_Name, c.Last_Name, c.Email 
-    FROM `Order` o 
-    JOIN Customer c ON o.Customer_ID = c.Customer_ID 
-    WHERE o.Order_ID = ?
-");
-$stmt->execute([$order_id]);
-$order = $stmt->fetch();
-
 // Get order items
 $stmt = $pdo->prepare("
-    SELECT t.*, p.Product_Name, p.Price 
-    FROM Transaction t 
-    JOIN Product p ON t.Product_ID = p.Product_ID 
+    SELECT p.Product_Name, p.Price, t.Quantity
+    FROM Transaction t
+    JOIN Product p ON t.Product_ID = p.Product_ID
     WHERE t.Order_ID = ?
 ");
-$stmt->execute([$order_id]);
-$order_items = $stmt->fetchAll();
-
-// Get shipping details
-$stmt = $pdo->prepare("
-    SELECT s.*, sa.*, sm.Method_Name, sm.Estimated_Delivery_Time 
-    FROM Transaction t 
-    JOIN Shipping s ON t.Shipping_ID = s.Shipping_ID 
-    JOIN Shipping_Address sa ON s.Shipping_Address_ID = sa.Shipping_Address_ID 
-    JOIN Shipping_Method sm ON s.Shipping_Method_ID = sm.Shipping_Method_ID 
-    WHERE t.Order_ID = ? 
-    LIMIT 1
-");
-$stmt->execute([$order_id]);
-$shipping = $stmt->fetch();
-
-// Get payment details
-$stmt = $pdo->prepare("
-    SELECT p.*, pm.Method_Name, pm.Provider 
-    FROM Transaction t 
-    JOIN Payment p ON t.Payment_ID = p.Payment_ID 
-    JOIN Payment_Method pm ON p.Payment_Method_ID = pm.Payment_Method_ID 
-    WHERE t.Order_ID = ? 
-    LIMIT 1
-");
-$stmt->execute([$order_id]);
-$payment = $stmt->fetch();
+$stmt->execute([$order['Order_ID']]);
+$items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -91,72 +88,36 @@ $payment = $stmt->fetch();
                         <h1 class="text-center text-success mb-4">
                             <i class="bi bi-check-circle"></i> Order Confirmed!
                         </h1>
-                        <p class="text-center">
-                            Thank you for your order, <?php echo htmlspecialchars($order['First_Name']); ?>! 
-                            Your order has been successfully placed.
-                        </p>
-                        <p class="text-center">
-                            Order ID: <strong><?php echo $order_id; ?></strong><br>
-                            Date: <?php echo date('M d, Y H:i', strtotime($order['Order_Date'])); ?>
-                        </p>
-
-                        <hr>
-
-                        <!-- Order Items -->
-                        <h5>Order Items</h5>
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Product</th>
-                                        <th>Price</th>
-                                        <th>Quantity</th>
-                                        <th>Subtotal</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach($order_items as $item): ?>
-                                        <tr>
-                                            <td><?php echo htmlspecialchars($item['Product_Name']); ?></td>
-                                            <td>$<?php echo number_format($item['Price'], 2); ?></td>
-                                            <td><?php echo $item['Quantity']; ?></td>
-                                            <td>$<?php echo number_format($item['Price'] * $item['Quantity'], 2); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                        <td><strong>$<?php echo number_format($order['Total_Amount'], 2); ?></strong></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
+                        <h5>Thank you for your order, <?php echo htmlspecialchars($order['First_Name'] ?? ''); ?>! Your order has been successfully placed.</h5>
+                        
+                        <p><strong>Order ID:</strong> <?php echo $order['Order_ID'] ?? ''; ?><br>
+                        <strong>Date:</strong> <?php echo date('M d, Y H:i', strtotime($order['Order_Date'] ?? '')); ?></p>
 
                         <!-- Shipping Information -->
-                        <h5>Shipping Information</h5>
+                        <h6>Shipping Information</h6>
                         <p>
-                            <strong>Method:</strong> <?php echo htmlspecialchars($shipping['Method_Name']); ?><br>
-                            <strong>Estimated Delivery:</strong> <?php echo htmlspecialchars($shipping['Estimated_Delivery_Time']); ?><br>
-                            <strong>Status:</strong> <?php echo htmlspecialchars($shipping['Shipping_Status']); ?>
+                            <strong>Method:</strong> <?php echo htmlspecialchars($order['Shipping_Method_Name'] ?? 'N/A'); ?><br>
+                            <strong>Estimated Delivery:</strong> <?php echo htmlspecialchars($order['Estimated_Delivery_Time'] ?? 'N/A'); ?><br>
+                            <strong>Status:</strong> <?php echo htmlspecialchars($order['Shipping_Status'] ?? 'N/A'); ?>
                         </p>
+
                         <p>
                             <strong>Shipping Address:</strong><br>
-                            <?php echo htmlspecialchars($shipping['Street']); ?><br>
-                            <?php echo htmlspecialchars($shipping['Barangay']); ?><br>
-                            <?php echo htmlspecialchars($shipping['Town_City']); ?>, 
-                            <?php echo htmlspecialchars($shipping['Province']); ?><br>
-                            <?php echo htmlspecialchars($shipping['Region']); ?> 
-                            <?php echo htmlspecialchars($shipping['Postal_Code']); ?>
+                            <?php echo htmlspecialchars($order['Street'] ?? ''); ?><br>
+                            <?php echo htmlspecialchars($order['Barangay'] ?? ''); ?><br>
+                            <?php echo htmlspecialchars($order['Town_City'] ?? ''); ?>,
+                            <?php echo htmlspecialchars($order['Province'] ?? ''); ?><br>
+                            <?php echo htmlspecialchars($order['Region'] ?? ''); ?>
+                            <?php echo htmlspecialchars($order['Postal_Code'] ?? ''); ?>
                         </p>
 
                         <!-- Payment Information -->
-                        <h5>Payment Information</h5>
+                        <h6>Payment Information</h6>
                         <p>
-                            <strong>Method:</strong> <?php echo htmlspecialchars($payment['Method_Name']); ?> - 
-                            <?php echo htmlspecialchars($payment['Provider']); ?><br>
-                            <strong>Status:</strong> <?php echo htmlspecialchars($payment['Payment_Status']); ?><br>
-                            <strong>Date:</strong> <?php echo date('M d, Y H:i', strtotime($payment['Payment_Date'])); ?>
+                            <strong>Method:</strong> <?php echo htmlspecialchars($order['Payment_Method_Name'] ?? 'N/A'); ?> - 
+                            <?php echo htmlspecialchars($order['Payment_Provider'] ?? 'N/A'); ?><br>
+                            <strong>Status:</strong> <?php echo htmlspecialchars($order['Payment_Status'] ?? 'N/A'); ?><br>
+                            <strong>Date:</strong> <?php echo date('M d, Y H:i', strtotime($order['Payment_Date'] ?? '')); ?>
                         </p>
 
                         <div class="text-center mt-4">

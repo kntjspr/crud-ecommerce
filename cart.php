@@ -2,7 +2,9 @@
 session_start();
 require_once 'config/database.php';
 
-if (!isset($_SESSION['customer_id'])) {
+// Only redirect if not logged in as customer
+if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'customer') {
+    $_SESSION['redirect_after_login'] = $_SERVER['PHP_SELF']; // Store current page
     header("Location: login.php");
     exit();
 }

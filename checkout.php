@@ -2,9 +2,42 @@
 session_start();
 require_once 'config/database.php';
 
-if (!isset($_SESSION['customer_id']) || !isset($_SESSION['order_id'])) {
+// Check if user is logged in as customer
+if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'customer') {
+    $_SESSION['redirect_after_login'] = 'checkout.php';
     header("Location: login.php");
     exit();
+}
+
+// Check if cart is empty
+if (!isset($_SESSION['cart']) || empty($_SESSION['cart'])) {
+    header("Location: cart.php");
+    exit();
+}
+
+// Create order if it doesn't exist
+if (!isset($_SESSION['order_id'])) {
+    try {
+        $pdo->beginTransaction();
+        
+        // Create new order
+        $stmt = $pdo->prepare("INSERT INTO `Order` (Customer_ID, Order_Date, Total_Amount) VALUES (?, NOW(), 0)");
+        $stmt->execute([$_SESSION['customer_id']]);
+        $_SESSION['order_id'] = $pdo->lastInsertId();
+        
+        // Add items to transaction
+        $stmt = $pdo->prepare("INSERT INTO Transaction (Order_ID, Product_ID, Quantity) VALUES (?, ?, ?)");
+        foreach ($_SESSION['cart'] as $product_id => $quantity) {
+            $stmt->execute([$_SESSION['order_id'], $product_id, $quantity]);
+        }
+        
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $_SESSION['error'] = "Error creating order: " . $e->getMessage();
+        header("Location: cart.php");
+        exit();
+    }
 }
 
 // Get order details
@@ -59,41 +92,57 @@ if (isset($_POST['place_order'])) {
 
         // Create payment record
         $stmt = $pdo->prepare("
-            INSERT INTO Payment (Order_ID, Payment_Date, Payment_Status, Payment_Method_ID) 
-            VALUES (?, NOW(), 'Pending', ?)
+            INSERT INTO Payment (Payment_Status, Payment_Method_ID, Payment_Date, Order_ID) 
+            VALUES ('Pending', ?, NOW(), ?)
         ");
-        $stmt->execute([$_SESSION['order_id'], $_POST['payment_method']]);
+        $stmt->execute([$_POST['payment_method'], $_SESSION['order_id']]);
         $payment_id = $pdo->lastInsertId();
-
-        // Create receipt
-        $stmt = $pdo->prepare("
-            INSERT INTO Receipt (Tax_Amount, Total_Amount, Type) 
-            VALUES (?, ?, 'Sale')
-        ");
-        $tax = $total * 0.12; // 12% tax
-        $stmt->execute([$tax, $total + $tax]);
-        $receipt_id = $pdo->lastInsertId();
 
         // Update transaction records
         $stmt = $pdo->prepare("
             UPDATE Transaction 
-            SET Shipping_ID = ?, Payment_ID = ?, Receipt_ID = ? 
+            SET Shipping_ID = ?, Payment_ID = ?
             WHERE Order_ID = ?
         ");
-        $stmt->execute([$shipping_id, $payment_id, $receipt_id, $_SESSION['order_id']]);
+        $stmt->execute([$shipping_id, $payment_id, $_SESSION['order_id']]);
+
+        // Update product quantities
+        $stmt = $pdo->prepare("
+            UPDATE Product 
+            SET Stock = Stock - ? 
+            WHERE Product_ID = ?
+        ");
+        foreach ($_SESSION['cart'] as $product_id => $quantity) {
+            $stmt->execute([$quantity, $product_id]);
+        }
 
         // Update order total
-        $stmt = $pdo->prepare("UPDATE `Order` SET Total_Amount = ? WHERE Order_ID = ?");
-        $stmt->execute([$total + $tax, $_SESSION['order_id']]);
+        $stmt = $pdo->prepare("
+            UPDATE `Order` 
+            SET Total_Amount = ?
+            WHERE Order_ID = ?
+        ");
+        $stmt->execute([
+            $total,
+            $_SESSION['order_id']
+        ]);
 
         $pdo->commit();
-        unset($_SESSION['order_id']); // Clear cart
-        header("Location: order_confirmation.php?order_id=" . $_SESSION['order_id']);
+
+        // Clear the cart
+        unset($_SESSION['cart']);
+        
+        // Store order ID for confirmation page
+        $order_id = $_SESSION['order_id'];
+        unset($_SESSION['order_id']);
+
+        // Redirect to confirmation page
+        header("Location: order_confirmation.php?order_id=" . $order_id);
         exit();
 
     } catch (Exception $e) {
         $pdo->rollBack();
-        $error = "Checkout failed. Please try again.";
+        $error = "Error processing order: " . $e->getMessage();
     }
 }
 ?>

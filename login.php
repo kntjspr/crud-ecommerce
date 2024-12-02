@@ -2,6 +2,18 @@
 session_start();
 require_once 'config/database.php';
 
+// If user is already logged in, redirect them
+if (isset($_SESSION['user_type'])) {
+    if ($_SESSION['user_type'] === 'customer') {
+        header("Location: index.php");
+    } else if ($_SESSION['is_admin']) {
+        header("Location: admin_dashboard.php");
+    } else {
+        header("Location: index.php");
+    }
+    exit();
+}
+
 if(isset($_POST['login'])) {
     $email = $_POST['email'];
     $password = $_POST['password'];
@@ -15,6 +27,7 @@ if(isset($_POST['login'])) {
         $_SESSION['employee_id'] = $user['Employee_ID'];
         $_SESSION['is_admin'] = $user['Is_Admin'];
         $_SESSION['user_name'] = $user['First_Name'] . ' ' . $user['Last_Name'];
+        $_SESSION['user_type'] = 'employee';
         
         if($user['Is_Admin']) {
             header("Location: admin_dashboard.php");
@@ -31,7 +44,16 @@ if(isset($_POST['login'])) {
         if($user && password_verify($password, $user['Password'])) {
             $_SESSION['customer_id'] = $user['Customer_ID'];
             $_SESSION['user_name'] = $user['First_Name'] . ' ' . $user['Last_Name'];
-            header("Location: index.php");
+            $_SESSION['user_type'] = 'customer';
+            
+            // Check if there's a redirect URL stored
+            if (isset($_SESSION['redirect_after_login'])) {
+                $redirect = $_SESSION['redirect_after_login'];
+                unset($_SESSION['redirect_after_login']);
+                header("Location: " . $redirect);
+            } else {
+                header("Location: index.php");
+            }
             exit();
         } else {
             $error = "Invalid email or password";

@@ -4,8 +4,38 @@ require_once 'config/database.php';
 
 // Check if user is admin
 if (!isset($_SESSION['employee_id']) || !isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-    header("Location: login.php");
+    header("Location: login.php?error=unauthorized");
     exit();
+}
+
+// Handle product deletion
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete') {
+    $product_id = $_POST['product_id'];
+    
+    try {
+        // Start transaction
+        $pdo->beginTransaction();
+        
+        // Update Transaction to set Product_ID to NULL
+        $stmt = $pdo->prepare("UPDATE Transaction SET Product_ID = NULL WHERE Product_ID = ?");
+        $stmt->execute([$product_id]);
+        
+        // Delete related reviews first
+        $stmt = $pdo->prepare("DELETE FROM Review WHERE Product_ID = ?");
+        $stmt->execute([$product_id]);
+        
+        // Delete the product
+        $stmt = $pdo->prepare("DELETE FROM Product WHERE Product_ID = ?");
+        $stmt->execute([$product_id]);
+        
+        $pdo->commit();
+        $_SESSION['success_message'] = "Product deleted successfully";
+        header("Location: manage_products.php");
+        exit();
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        $_SESSION['error_message'] = "Error deleting product: " . $e->getMessage();
+    }
 }
 
 // Get all products
@@ -64,6 +94,15 @@ $products = $stmt->fetchAll();
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Manage Products</h1>
+            <?php if(isset($_SESSION['success_message'])): ?>
+                <div class="alert alert-success"><?php echo $_SESSION['success_message']; ?></div>
+                <?php unset($_SESSION['success_message']); ?>
+            <?php endif; ?>
+            
+            <?php if(isset($_SESSION['error_message'])): ?>
+                <div class="alert alert-danger"><?php echo $_SESSION['error_message']; ?></div>
+                <?php unset($_SESSION['error_message']); ?>
+            <?php endif; ?>
             <a href="add_product.php" class="btn btn-primary">Add New Product</a>
         </div>
 

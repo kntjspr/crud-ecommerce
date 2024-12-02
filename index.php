@@ -2,6 +2,8 @@
 session_start();
 require_once 'config/database.php';
 
+// Debug session data (remove this in production)
+// var_dump($_SESSION);
 ?>
 
 <!DOCTYPE html>
