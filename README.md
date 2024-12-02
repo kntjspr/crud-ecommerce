@@ -123,7 +123,15 @@ cd crud-ecommerce
 chmod 755 -R crud-ecommerce/
 ```
 
-3. Initialize the database
+
+
+
+3. Configure database connection
+- Copy `config/database.example.php` to `config/database.php`
+- Update database credentials
+
+
+4. Initialize the database
 
 ```bash
 php database_init.php
@@ -132,7 +140,51 @@ or
 
 `localhost/database_init.php`
 
-## Usage
+
+
+### Setting Up Admin Account
+1. After installation, the system requires an initial admin account setup
+2. Navigate to `admin_dashboard.php` in your browser
+3. You will be presented with the admin registration form
+4. Fill in the required details:
+   - Personal Information (name, email, password)
+   - Contact Details (phone number, address)
+   - Employment Information (SSS, TIN, etc.)
+5. Submit the form to create your admin account
+6. You will be redirected to the login page
+7. Log in with your email and password
+
+### Employee Management
+Once logged in as admin, you can:
+1. Create new employee accounts:
+   - Navigate to "Register Employee" in the admin dashboard
+   - Fill in employee details
+   - Assign roles and permissions
+   - Set department and position
+
+  2. Manage existing employees:
+   - View all employees in the admin dashboard
+   - Edit employee information
+   - Activate/deactivate accounts
+   - Assign admin privileges
+   - Update employment details
+
+### Product Management
+As an admin, you can:
+1. Add new products:
+   - Navigate to "Manage Products"
+   - Click "Add New Product"
+   - Fill in product details
+   - Set pricing and stock levels
+
+2. Update existing products:
+   - Edit product information
+   - Update stock levels
+   - Modify pricing
+   - Manage product categories
+
+
+## Customer Usage
 
 1. Start by registering a new customer account
 2. Browse products by category
