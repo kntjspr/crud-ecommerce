@@ -47,6 +47,41 @@ if(isset($_POST['submit_review']) && isset($_SESSION['customer_id'])) {
     header("Location: product_details.php?id=" . $product_id);
     exit();
 }
+
+// Handle add to cart
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
+    // Initialize cart if it doesn't exist
+    if (!isset($_SESSION['cart'])) {
+        $_SESSION['cart'] = [];
+    }
+
+    $product_id = (int)$_POST['product_id'];
+    $quantity = (int)$_POST['quantity'];
+
+    // Validate quantity
+    if ($quantity > 0 && $quantity <= $product['Stock']) {
+        // Add to cart or update quantity if already exists
+        if (isset($_SESSION['cart'][$product_id])) {
+            // Check if new total quantity exceeds stock
+            $new_quantity = $_SESSION['cart'][$product_id] + $quantity;
+            if ($new_quantity <= $product['Stock']) {
+                $_SESSION['cart'][$product_id] = $new_quantity;
+                $_SESSION['success_message'] = "Cart updated successfully";
+            } else {
+                $_SESSION['error_message'] = "Cannot add more than available stock";
+            }
+        } else {
+            $_SESSION['cart'][$product_id] = $quantity;
+            $_SESSION['success_message'] = "Product added to cart";
+        }
+        
+        // Redirect to prevent form resubmission
+        header("Location: cart.php");
+        exit();
+    } else {
+        $_SESSION['error_message'] = "Invalid quantity";
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -123,11 +158,26 @@ if(isset($_POST['submit_review']) && isset($_SESSION['customer_id'])) {
                         <h5>Stock Status</h5>
                         <?php if($product['Stock'] > 0): ?>
                             <p class="text-success">In Stock (<?php echo $product['Stock']; ?> available)</p>
-                            <form action="cart.php" method="POST" class="mb-3">
+                            <form method="POST" class="mt-3">
                                 <input type="hidden" name="product_id" value="<?php echo $product['Product_ID']; ?>">
-                                <div class="input-group mb-3" style="max-width: 200px;">
-                                    <input type="number" class="form-control" name="quantity" value="1" min="1" max="<?php echo $product['Stock']; ?>">
-                                    <button type="submit" name="add_to_cart" class="btn btn-primary">Add to Cart</button>
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-auto">
+                                        <input type="number" 
+                                               name="quantity" 
+                                               class="form-control" 
+                                               value="1" 
+                                               min="1" 
+                                               max="<?php echo $product['Stock']; ?>" 
+                                               required>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="submit" 
+                                                name="add_to_cart" 
+                                                class="btn btn-primary"
+                                                <?php echo $product['Stock'] <= 0 ? 'disabled' : ''; ?>>
+                                            Add to Cart
+                                        </button>
+                                    </div>
                                 </div>
                             </form>
                         <?php else: ?>
