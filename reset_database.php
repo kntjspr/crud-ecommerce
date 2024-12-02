@@ -1,4 +1,7 @@
 <?php
+/* NOTICE: Strictly for debugging purposes only. Executing this will wipe out the entire database.
+    If you have executed this by mistake, you will need to re-initialize the database by executing employee_register.php
+*/
 $host = 'localhost';
 $username = 'root';
 $password = '';
