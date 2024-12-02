@@ -35,7 +35,6 @@ This project is not battle-tested and is not fit for production. This was made a
 - MySQL 5.7+
 - Bootstrap 5
 - HTML5/CSS3
-- JavaScript
 
 ## Security Features
 - SQL Injection Prevention
@@ -58,9 +57,8 @@ The system uses a comprehensive database design with the following key component
 crud-ecommerce/
 ├── config/
 │   └── database.php
-├── assets/
+├── assets/ (future assets like image uploads should be stored in here)
 │   ├── css/
-│   ├── js/
 │   └── images/
 ├── includes/
 │   └── navbar.php
