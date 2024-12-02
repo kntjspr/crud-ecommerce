@@ -113,40 +113,24 @@ git clone https://github.com/kntjspr/crud-ecommerce.git
 cd crud-ecommerce
 ```
 
-2. Configure your database connection:
-   - Open `config/database.php`
-   - Update the database credentials:
 
-```php
-$host = 'localhost';
-$dbname = 'crud-ecommerce_db';
-$username = 'your_username';
-$password = 'your_password';
-```
-
-3. Initialize the database:
-   - Create a new database named 'crud-ecommerce_db'
-   - Run the database initialization script:
-
-```bash
-php database_init.php
-```
-   Or import the SQL file:
-
-```bash
-mysql -u username -p crud-ecommerce_db < database_init.sql
-```
-
-4. Set up web server
+2. Set up web server
 - Point your web server to the project directory
 - Ensure PHP 7.4+ is installed
 - Enable required PHP extensions (PDO, MySQL)
 
 ```bash
 chmod 755 -R crud-ecommerce/
-chmod 777 -R crud-ecommerce/uploads/
 ```
 
+3. Initialize the database
+
+```bash
+php database_init.php
+```
+or
+
+`localhost/database_init.php`
 
 ## Usage
 
@@ -181,8 +165,6 @@ For support, please email kntjspr@pm.me or create an issue in the repository.
 - MySQL for the database system 
 
 
-
-
 ---
 
 ## Problems encountered:
@@ -205,8 +187,11 @@ The current ER diagram wasn't strictly followed due to some problems encountered
 - Added DEFAULT values for some fields (e.g., Is_Admin, Is_Active)
 - Added UNIQUE constraint on Username in Customer table
 
+
 ---
+
 ## Revised ER Diagram (ERD)
+
 ```mermaid
 erDiagram
     Customer ||--o{ Order : places
