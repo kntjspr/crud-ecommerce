@@ -7,6 +7,52 @@ if (!isset($_SESSION['employee_id']) || !isset($_SESSION['is_admin']) || !$_SESS
     header("Location: login.php");
     exit();
 }
+
+// Handle employee actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        if (isset($_POST['action'])) {
+            switch ($_POST['action']) {
+                case 'toggle_active':
+                    $stmt = $pdo->prepare("
+                        UPDATE Employee 
+                        SET Is_Active = NOT Is_Active 
+                        WHERE Employee_ID = ?
+                    ");
+                    $stmt->execute([$_POST['employee_id']]);
+                    $_SESSION['success_message'] = "Employee status updated successfully!";
+                    break;
+
+                case 'toggle_admin':
+                    $stmt = $pdo->prepare("
+                        UPDATE Employee 
+                        SET Is_Admin = NOT Is_Admin 
+                        WHERE Employee_ID = ?
+                    ");
+                    $stmt->execute([$_POST['employee_id']]);
+                    $_SESSION['success_message'] = "Employee admin privileges updated successfully!";
+                    break;
+            }
+        }
+    } catch (Exception $e) {
+        $_SESSION['error_message'] = "Operation failed: " . $e->getMessage();
+    }
+    
+    // Redirect to refresh the page
+    header("Location: admin_dashboard.php");
+    exit();
+}
+
+// Get all employees with their positions and departments
+$stmt = $pdo->prepare("
+    SELECT e.*, p.Title as Position, d.Department_Name
+    FROM Employee e
+    LEFT JOIN Job_Position p ON e.Position_ID = p.Position_ID
+    LEFT JOIN Department d ON e.Department = d.Department_ID
+    ORDER BY e.Employee_ID DESC
+");
+$stmt->execute();
+$employees = $stmt->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -58,8 +104,92 @@ if (!isset($_SESSION['employee_id']) || !isset($_SESSION['is_admin']) || !$_SESS
     </nav>
 
     <div class="container mt-4">
-        <h1>Admin Dashboard</h1>
-        
+        <?php if(isset($_SESSION['success_message'])): ?>
+            <div class="alert alert-success">
+                <?php 
+                    echo $_SESSION['success_message']; 
+                    unset($_SESSION['success_message']);
+                ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if(isset($_SESSION['error_message'])): ?>
+            <div class="alert alert-danger">
+                <?php 
+                    echo $_SESSION['error_message']; 
+                    unset($_SESSION['error_message']);
+                ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">Employee Management</h3>
+                        <a href="employee_register.php" class="btn btn-primary">Register New Employee</a>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Position</th>
+                                        <th>Department</th>
+                                        <th>Status</th>
+                                        <th>Admin</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach($employees as $employee): ?>
+                                        <tr>
+                                            <td><?php echo $employee['Employee_ID']; ?></td>
+                                            <td><?php echo htmlspecialchars($employee['First_Name'] . ' ' . $employee['Last_Name']); ?></td>
+                                            <td><?php echo htmlspecialchars($employee['Email']); ?></td>
+                                            <td><?php echo htmlspecialchars($employee['Position']); ?></td>
+                                            <td><?php echo htmlspecialchars($employee['Department_Name']); ?></td>
+                                            <td>
+                                                <span class="badge bg-<?php echo $employee['Is_Active'] ? 'success' : 'danger'; ?>">
+                                                    <?php echo $employee['Is_Active'] ? 'Active' : 'Inactive'; ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-<?php echo $employee['Is_Admin'] ? 'primary' : 'secondary'; ?>">
+                                                    <?php echo $employee['Is_Admin'] ? 'Admin' : 'Employee'; ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="action" value="toggle_active">
+                                                    <input type="hidden" name="employee_id" value="<?php echo $employee['Employee_ID']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-<?php echo $employee['Is_Active'] ? 'danger' : 'success'; ?>">
+                                                        <?php echo $employee['Is_Active'] ? 'Deactivate' : 'Activate'; ?>
+                                                    </button>
+                                                </form>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="action" value="toggle_admin">
+                                                    <input type="hidden" name="employee_id" value="<?php echo $employee['Employee_ID']; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-<?php echo $employee['Is_Admin'] ? 'warning' : 'info'; ?>">
+                                                        <?php echo $employee['Is_Admin'] ? 'Remove Admin' : 'Make Admin'; ?>
+                                                    </button>
+                                                </form>
+                                                <a href="edit_employee.php?id=<?php echo $employee['Employee_ID']; ?>" 
+                                                   class="btn btn-sm btn-primary">Edit</a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="row mt-4">
             <div class="col-md-4 mb-4">
                 <div class="card">
