@@ -24,6 +24,11 @@ if(!$product) {
     exit();
 }
 
+// Get product images
+$stmt = $pdo->prepare("SELECT * FROM ProductImage WHERE Product_ID = ?");
+$stmt->execute([$product_id]);
+$images = $stmt->fetchAll();
+
 // Get product reviews
 $stmt = $pdo->prepare("
     SELECT r.*, c.Username 
@@ -92,6 +97,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
     <title><?php echo htmlspecialchars($product['Product_Name']); ?> - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        .product-image {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+        }
+        .thumbnail {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            cursor: pointer;
+            margin: 5px;
+            border: 2px solid transparent;
+        }
+        .thumbnail.active {
+            border-color: #0d6efd;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -143,7 +166,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
         </nav>
 
         <div class="row">
-            <div class="col-md-8">
+            <div class="col-md-6">
+                <?php if(!empty($images)): ?>
+                    <div id="productCarousel" class="carousel slide mb-3" data-bs-ride="carousel">
+                        <div class="carousel-inner">
+                            <?php foreach($images as $index => $image): ?>
+                                <div class="carousel-item <?php echo $index === 0 ? 'active' : ''; ?>">
+                                    <img src="<?php echo htmlspecialchars($image['Image_Path']); ?>" 
+                                         class="d-block product-image" 
+                                         alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php if(count($images) > 1): ?>
+                            <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Previous</span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#productCarousel" data-bs-slide="next">
+                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                <span class="visually-hidden">Next</span>
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                    <?php if(count($images) > 1): ?>
+                        <div class="d-flex flex-wrap justify-content-center">
+                            <?php foreach($images as $index => $image): ?>
+                                <img src="<?php echo htmlspecialchars($image['Image_Path']); ?>" 
+                                     class="thumbnail <?php echo $index === 0 ? 'active' : ''; ?>"
+                                     data-bs-target="#productCarousel"
+                                     data-bs-slide-to="<?php echo $index; ?>"
+                                     alt="Thumbnail">
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <img src="uploads/products/default.jpg" class="product-image" alt="Default Product Image">
+                <?php endif; ?>
+            </div>
+            
+            <div class="col-md-6">
                 <h1><?php echo htmlspecialchars($product['Product_Name']); ?></h1>
                 <p class="text-muted">Category: <?php echo htmlspecialchars($product['Category_Name']); ?></p>
                 
@@ -185,8 +247,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
                         <?php endif; ?>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Reviews Section -->
+        <!-- Reviews Section -->
+        <div class="row">
+            <div class="col-md-8">
                 <h3>Customer Reviews</h3>
                 <?php if(isset($_SESSION['customer_id'])): ?>
                     <form action="" method="POST" class="mb-4">
@@ -232,5 +298,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize thumbnails
+        document.querySelectorAll('.thumbnail').forEach(thumb => {
+            thumb.addEventListener('click', function() {
+                document.querySelectorAll('.thumbnail').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Update thumbnail active state when carousel slides
+        document.getElementById('productCarousel')?.addEventListener('slid.bs.carousel', function (event) {
+            document.querySelectorAll('.thumbnail').forEach((thumb, index) => {
+                thumb.classList.toggle('active', index === event.to);
+            });
+        });
+    </script>
 </body>
 </html> 

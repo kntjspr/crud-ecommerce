@@ -105,6 +105,14 @@ try {
             FOREIGN KEY (Category_ID) REFERENCES Category(Category_ID)
         )",
 
+        "CREATE TABLE IF NOT EXISTS ProductImage (
+            Image_ID INT(5) PRIMARY KEY AUTO_INCREMENT,
+            Product_ID INT(5) NOT NULL,
+            Image_Path VARCHAR(255) NOT NULL,
+            Created_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID) ON DELETE CASCADE
+        )",
+
         "CREATE TABLE IF NOT EXISTS `Order` (
             Order_ID INT(5) PRIMARY KEY AUTO_INCREMENT,
             Customer_ID INT(5),
@@ -273,6 +281,47 @@ try {
         $stmt->execute($method);
     }
     echo "Payment methods added successfully<br>";
+
+    // Create default admin address
+    $stmt = $pdo->prepare("INSERT INTO Employee_Address (Street, Barangay, Town_City, Province, Region, Postal_Code) 
+                          VALUES ('Default Street', 'Default Barangay', 'Default City', 'Default Province', 'Default Region', 1234)");
+    $stmt->execute();
+    $address_id = $pdo->lastInsertId();
+    echo "Admin address created<br>";
+
+    // Get the first department and position IDs
+    $dept_stmt = $pdo->query("SELECT Department_ID FROM Department LIMIT 1");
+    $department_id = $dept_stmt->fetchColumn();
+
+    $pos_stmt = $pdo->query("SELECT Position_ID FROM Job_Position LIMIT 1");
+    $position_id = $pos_stmt->fetchColumn();
+
+    // Create default admin account
+    $admin_password = password_hash('admin123', PASSWORD_DEFAULT);
+    $stmt = $pdo->prepare("INSERT INTO Employee (
+        First_Name, 
+        Last_Name, 
+        Email, 
+        Password, 
+        Employee_Address,
+        Department,
+        Position_ID,
+        Is_Admin,
+        Is_Active
+    ) VALUES (
+        'Admin',
+        'User',
+        'admin@shoepee.com',
+        ?,
+        ?,
+        ?,
+        ?,
+        TRUE,
+        TRUE
+    )");
+    $stmt->execute([$admin_password, $address_id, $department_id, $position_id]);
+    echo "Admin account created successfully<br>";
+    echo "Admin credentials - Email: admin@shoepee.com, Password: admin123<br>";
 
     echo "Database initialization completed successfully!";
 

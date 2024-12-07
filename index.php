@@ -1,9 +1,6 @@
 <?php
 session_start();
 require_once 'config/database.php';
-
-// Debug session data (remove this in production)
-// var_dump($_SESSION);
 ?>
 
 <!DOCTYPE html>
@@ -13,6 +10,16 @@ require_once 'config/database.php';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shoepee - Your One-Stop Shoe Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .card {
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -75,14 +82,32 @@ require_once 'config/database.php';
         <h2>Featured Products</h2>
         <div class="row">
             <?php
-            $stmt = $pdo->query("SELECT * FROM Product ORDER BY Product_ID DESC LIMIT 4");
+            // Get featured products with their first image
+            $stmt = $pdo->query("
+                SELECT p.*, 
+                       (SELECT Image_Path FROM ProductImage pi 
+                        WHERE pi.Product_ID = p.Product_ID 
+                        LIMIT 1) as Image_Path
+                FROM Product p 
+                ORDER BY p.Product_ID DESC 
+                LIMIT 4
+            ");
             while($product = $stmt->fetch()){
             ?>
                 <div class="col-md-3 mb-4">
                     <div class="card">
+                        <?php if($product['Image_Path']): ?>
+                            <img src="<?php echo htmlspecialchars($product['Image_Path']); ?>" 
+                                 class="card-img-top product-image" 
+                                 alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
+                        <?php else: ?>
+                            <img src="uploads/products/default.jpg" 
+                                 class="card-img-top product-image" 
+                                 alt="Default Product Image">
+                        <?php endif; ?>
                         <div class="card-body">
                             <h5 class="card-title"><?php echo htmlspecialchars($product['Product_Name']); ?></h5>
-                            <p class="card-text">$<?php echo htmlspecialchars($product['Price']); ?></p>
+                            <p class="card-text">$<?php echo number_format($product['Price'], 2); ?></p>
                             <a href="product_details.php?id=<?php echo $product['Product_ID']; ?>" class="btn btn-primary">View Details</a>
                         </div>
                     </div>

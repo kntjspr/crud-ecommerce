@@ -2,8 +2,15 @@
 session_start();
 require_once 'config/database.php';
 
-// Get all products
-$stmt = $pdo->query("SELECT * FROM Product ORDER BY Product_ID DESC");
+// Get all products with their first image
+$stmt = $pdo->query("
+    SELECT p.*, 
+           (SELECT Image_Path FROM ProductImage pi 
+            WHERE pi.Product_ID = p.Product_ID 
+            LIMIT 1) as Image_Path
+    FROM Product p 
+    ORDER BY p.Product_ID DESC
+");
 $products = $stmt->fetchAll();
 ?>
 
@@ -14,6 +21,16 @@ $products = $stmt->fetchAll();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Products - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .card {
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -74,6 +91,11 @@ $products = $stmt->fetchAll();
             <?php foreach($products as $product): ?>
                 <div class="col-md-4 mb-4">
                     <div class="card">
+                        <?php if($product['Image_Path']): ?>
+                            <img src="<?php echo htmlspecialchars($product['Image_Path']); ?>" class="card-img-top product-image" alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
+                        <?php else: ?>
+                            <img src="uploads/products/default.jpg" class="card-img-top product-image" alt="Default Product Image">
+                        <?php endif; ?>
                         <div class="card-body">
                             <h5 class="card-title"><?php echo htmlspecialchars($product['Product_Name']); ?></h5>
                             <p class="card-text"><?php echo htmlspecialchars($product['Description']); ?></p>
