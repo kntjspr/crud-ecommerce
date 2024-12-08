@@ -1,0 +1,57 @@
+# Uploads directory
+/uploads/products/*
+!/uploads/products/.gitkeep
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dependency directories
+/vendor/
+/node_modules/
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Cache and temporary files
+/cache/
+/tmp/
+*.tmp
+*.temp
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Backup files
+*.bak
+*.swp
+*~
+
+# Config files with sensitive data
+config.php
+database.php
+!config/database.php
+
+# Keep default images
+!/uploads/shoepee_logo.png
+!/uploads/shoepee_logo.ico
+!/uploads/products/default.jpg 
