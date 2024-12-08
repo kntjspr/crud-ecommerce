@@ -52,208 +52,202 @@ Entity relationships with attributes and constraints.
 ```mermaid
 erDiagram
     JOB_POSITION {
-        int Position_ID PK "AUTO_INCREMENT"
-        varchar50 Title "NOT NULL"
-        varchar100 Description
+        Position_ID INT PK "AUTO_INCREMENT"
+        Title VARCHAR50 "NOT NULL"
+        Description VARCHAR100
     }
     
     DEPARTMENT {
-        int Department_ID PK "AUTO_INCREMENT"
-        varchar25 Department_Name "NOT NULL"
-        varchar100 Description
+        Department_ID INT PK "AUTO_INCREMENT"
+        Department_Name VARCHAR25 "NOT NULL"
+        Description VARCHAR100
     }
     
     ISSUE_TRACKER {
-        int Issue_Tracker_ID PK "AUTO_INCREMENT"
-        varchar100 Description
-        varchar20 Status
+        Issue_Tracker_ID INT PK "AUTO_INCREMENT"
+        Description VARCHAR100
+        Status VARCHAR20
     }
     
     EMPLOYEE_ADDRESS {
-        int Employee_Address_ID PK "AUTO_INCREMENT"
-        varchar25 Street "NOT NULL"
-        varchar25 Barangay "NOT NULL"
-        varchar25 Town_City "NOT NULL"
-        varchar25 Province "NOT NULL"
-        varchar25 Region "NOT NULL"
-        int4 Postal_Code "NOT NULL"
+        Employee_Address_ID INT PK "AUTO_INCREMENT"
+        Street VARCHAR25 "NOT NULL"
+        Barangay VARCHAR25 "NOT NULL"
+        Town_City VARCHAR25 "NOT NULL"
+        Province VARCHAR25 "NOT NULL"
+        Region VARCHAR25 "NOT NULL"
+        Postal_Code INT4 "NOT NULL"
     }
     
     CUSTOMER_ADDRESS {
-        int Customer_Address_ID PK "AUTO_INCREMENT"
-        varchar25 Street "NOT NULL"
-        varchar25 Barangay "NOT NULL"
-        varchar25 Town_City "NOT NULL"
-        varchar25 Province "NOT NULL"
-        varchar25 Region "NOT NULL"
-        int4 Postal_Code "NOT NULL"
+        Customer_Address_ID INT PK "AUTO_INCREMENT"
+        Street VARCHAR25 "NOT NULL"
+        Barangay VARCHAR25 "NOT NULL"
+        Town_City VARCHAR25 "NOT NULL"
+        Province VARCHAR25 "NOT NULL"
+        Region VARCHAR25 "NOT NULL"
+        Postal_Code INT4 "NOT NULL"
     }
     
     EMPLOYEE {
-        int Employee_ID PK "AUTO_INCREMENT"
-        varchar25 First_Name "NOT NULL"
-        varchar25 Last_Name "NOT NULL"
-        varchar20 Phone_Number
-        int Employee_Address FK
-        varchar10 Gender
-        datetime Birthday
-        varchar50 Email
-        varchar255 Password "NOT NULL"
-        int Department FK
-        decimal10_2 Salary
-        varchar20 SSS_Number
-        varchar20 Pag_IBIG
-        varchar20 PhilHealth
-        varchar20 TIN
-        int Issue_Tracker_ID FK
-        int Position_ID FK
-        boolean Is_Admin "DEFAULT FALSE"
-        boolean Is_Active "DEFAULT TRUE"
+        Employee_ID INT PK "AUTO_INCREMENT"
+        First_Name VARCHAR25 "NOT NULL"
+        Last_Name VARCHAR25 "NOT NULL"
+        Phone_Number VARCHAR20
+        Employee_Address INT FK
+        Gender VARCHAR10
+        Birthday DATETIME
+        Email VARCHAR50
+        Password VARCHAR255 "NOT NULL"
+        Department INT FK
+        Salary DECIMAL10_2
+        SSS_Number VARCHAR20
+        Pag_IBIG VARCHAR20
+        PhilHealth VARCHAR20
+        TIN VARCHAR20
+        Issue_Tracker_ID INT FK
+        Position_ID INT FK
+        Is_Admin BOOLEAN "DEFAULT FALSE"
+        Is_Active BOOLEAN "DEFAULT TRUE"
     }
     
     CUSTOMER {
-        int Customer_ID PK "AUTO_INCREMENT"
-        varchar50 Username "NOT NULL UNIQUE"
-        varchar50 First_Name "NOT NULL"
-        varchar50 Last_Name "NOT NULL"
-        varchar50 Email "NOT NULL"
-        varchar255 Password "NOT NULL"
-        varchar20 Phone_Number
-        int Customer_Address FK
-        varchar10 Gender
-        datetime Birthday
+        Customer_ID INT PK "AUTO_INCREMENT"
+        Username VARCHAR50 "NOT NULL UNIQUE"
+        First_Name VARCHAR50 "NOT NULL"
+        Last_Name VARCHAR50 "NOT NULL"
+        Email VARCHAR50 "NOT NULL"
+        Password VARCHAR255 "NOT NULL"
+        Phone_Number VARCHAR20
+        Customer_Address INT FK
+        Gender VARCHAR10
+        Birthday DATETIME
     }
     
     CATEGORY {
-        int Category_ID PK "AUTO_INCREMENT"
-        varchar100 Category_Name "NOT NULL"
+        Category_ID INT PK "AUTO_INCREMENT"
+        Category_Name VARCHAR100 "NOT NULL"
     }
     
     PRODUCT {
-        int Product_ID PK "AUTO_INCREMENT"
-        varchar100 Product_Name "NOT NULL"
-        varchar500 Description
-        decimal10_2 Price "NOT NULL"
-        int5 Stock "NOT NULL"
-        int Category_ID FK
+        Product_ID INT PK "AUTO_INCREMENT"
+        Product_Name VARCHAR100 "NOT NULL"
+        Description VARCHAR500
+        Price DECIMAL10_2 "NOT NULL"
+        Stock INT5 "NOT NULL"
+        Category_ID INT FK
     }
     
     PRODUCTIMAGE {
-        int Image_ID PK "AUTO_INCREMENT"
-        int Product_ID FK "NOT NULL"
-        varchar255 Image_Path "NOT NULL"
-        timestamp Created_At "DEFAULT CURRENT_TIMESTAMP"
+        Image_ID INT PK "AUTO_INCREMENT"
+        Product_ID INT FK "NOT NULL"
+        Image_Path VARCHAR255 "NOT NULL"
+        Created_At TIMESTAMP "DEFAULT CURRENT_TIMESTAMP"
     }
-```
-
-## 3. Physical Design
-Complete database schema with exact data types and constraints.
-
-```mermaid
-erDiagram
+    
     ORDER {
-        int5 Order_ID PK "AUTO_INCREMENT"
-        int5 Customer_ID FK "NOT NULL"
-        datetime Order_Date "NOT NULL"
-        decimal10_2 Total_Amount "NOT NULL"
-        int5 Employee_ID FK
+        Order_ID INT5 PK "AUTO_INCREMENT"
+        Customer_ID INT5 FK "NOT NULL"
+        Order_Date DATETIME "NOT NULL"
+        Total_Amount DECIMAL10_2 "NOT NULL"
+        Employee_ID INT5 FK
     }
     
     PAYMENT_METHOD {
-        int5 Payment_Method_ID PK "AUTO_INCREMENT"
-        varchar100 Method_Name "NOT NULL"
-        varchar100 Provider "NOT NULL"
-        decimal10_2 Transaction_Fee
+        Payment_Method_ID INT5 PK "AUTO_INCREMENT"
+        Method_Name VARCHAR100 "NOT NULL"
+        Provider VARCHAR100 "NOT NULL"
+        Transaction_Fee DECIMAL10_2
     }
     
     SHIPPING_METHOD {
-        int Shipping_Method_ID PK "AUTO_INCREMENT"
-        varchar50 Method_Name "UNIQUE"
-        decimal10_2 Cost
-        varchar50 Estimated_Delivery_Time
+        Shipping_Method_ID INT PK "AUTO_INCREMENT"
+        Method_Name VARCHAR50 "NOT NULL UNIQUE"
+        Cost DECIMAL10_2
+        Estimated_Delivery_Time VARCHAR50
     }
     
     SHIPPING_ADDRESS {
-        int5 Shipping_Address_ID PK "AUTO_INCREMENT"
-        varchar25 Street "NOT NULL"
-        varchar25 Barangay "NOT NULL"
-        varchar25 Town_City "NOT NULL"
-        varchar25 Province "NOT NULL"
-        varchar10 Region "NOT NULL"
-        int4 Postal_Code "NOT NULL"
+        Shipping_Address_ID INT5 PK "AUTO_INCREMENT"
+        Street VARCHAR25 "NOT NULL"
+        Barangay VARCHAR25 "NOT NULL"
+        Town_City VARCHAR25 "NOT NULL"
+        Province VARCHAR25 "NOT NULL"
+        Region VARCHAR10 "NOT NULL"
+        Postal_Code INT4 "NOT NULL"
     }
     
     SHIPPING {
-        int5 Shipping_ID PK "AUTO_INCREMENT"
-        varchar20 Shipping_Status
-        int5 Shipping_Address_ID FK
-        int5 Shipping_Method_ID FK
+        Shipping_ID INT5 PK "AUTO_INCREMENT"
+        Shipping_Status VARCHAR20
+        Shipping_Address_ID INT5 FK
+        Shipping_Method_ID INT5 FK
     }
     
     PAYMENT {
-        int Payment_ID PK "AUTO_INCREMENT"
-        int Order_ID FK
-        int Payment_Method_ID FK
-        varchar50 Payment_Status "DEFAULT 'Pending'"
-        datetime Payment_Date
-        decimal10_2 Amount "NOT NULL"
+        Payment_ID INT PK "AUTO_INCREMENT"
+        Order_ID INT FK
+        Payment_Method_ID INT FK
+        Payment_Status VARCHAR50 "DEFAULT 'Pending'"
+        Payment_Date DATETIME
+        Amount DECIMAL10_2 "NOT NULL"
     }
     
     RECEIPT {
-        int5 Receipt_ID PK "AUTO_INCREMENT"
-        decimal10_2 Tax_Amount
-        decimal10_2 Total_Amount
-        varchar20 Type
+        Receipt_ID INT5 PK "AUTO_INCREMENT"
+        Tax_Amount DECIMAL10_2
+        Total_Amount DECIMAL10_2
+        Type VARCHAR20
     }
     
     REVIEW {
-        int5 Review_ID PK "AUTO_INCREMENT"
-        int5 Product_ID FK
-        int5 Customer_ID FK
-        int1 Rating "NOT NULL CHECK (Rating >= 1 AND Rating <= 5)"
-        varchar500 Review_Text
-        datetime Review_Date "NOT NULL"
+        Review_ID INT5 PK "AUTO_INCREMENT"
+        Product_ID INT5 FK
+        Customer_ID INT5 FK
+        Rating INT1 "NOT NULL CHECK(1-5)"
+        Review_Text VARCHAR500
+        Review_Date DATETIME "NOT NULL"
     }
     
     TRANSACTION {
-        int5 Transaction_ID PK "AUTO_INCREMENT"
-        int5 Order_ID FK
-        int5 Shipping_ID FK
-        int5 Receipt_ID FK
-        int5 Product_ID FK
-        int5 Payment_ID FK
-        int5 Quantity "DEFAULT 1"
+        Transaction_ID INT5 PK "AUTO_INCREMENT"
+        Order_ID INT5 FK
+        Shipping_ID INT5 FK
+        Receipt_ID INT5 FK
+        Product_ID INT5 FK
+        Payment_ID INT5 FK
+        Quantity INT5 "DEFAULT 1"
     }
     
     CART {
-        int Cart_ID PK "AUTO_INCREMENT"
-        int Customer_ID FK "NOT NULL"
-        int Product_ID FK "NOT NULL"
-        int Quantity "NOT NULL DEFAULT 1"
-        timestamp Added_At "DEFAULT CURRENT_TIMESTAMP"
-        UNIQUE "Customer_ID, Product_ID"
+        Cart_ID INT PK "AUTO_INCREMENT"
+        Customer_ID INT FK "NOT NULL"
+        Product_ID INT FK "NOT NULL"
+        Quantity INT "NOT NULL DEFAULT 1"
+        Added_At TIMESTAMP "DEFAULT CURRENT_TIMESTAMP"
+        unique_customer_product_idx VARCHAR "UNIQUE(Customer_ID,Product_ID)"
     }
     
     ORDERITEM {
-        int OrderItem_ID PK "AUTO_INCREMENT"
-        int Order_ID FK "NOT NULL"
-        int Product_ID FK "NOT NULL"
-        int Quantity "NOT NULL"
-        decimal10_2 Price "NOT NULL"
+        OrderItem_ID INT PK "AUTO_INCREMENT"
+        Order_ID INT FK "NOT NULL"
+        Product_ID INT FK "NOT NULL"
+        Quantity INT "NOT NULL"
+        Price DECIMAL10_2 "NOT NULL"
     }
     
     SETTINGS {
-        int id PK "AUTO_INCREMENT"
-        varchar100 store_name "NOT NULL DEFAULT 'Shoepee'"
-        varchar100 store_email
-        varchar20 store_phone
-        text store_address
-        decimal5_2 tax_rate "DEFAULT 0.00"
-        decimal10_2 shipping_fee "DEFAULT 0.00"
-        decimal10_2 free_shipping_threshold "DEFAULT 0.00"
-        boolean maintenance_mode "DEFAULT FALSE"
-        timestamp created_at "DEFAULT CURRENT_TIMESTAMP"
-        timestamp updated_at "DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
+        id INT PK "AUTO_INCREMENT"
+        store_name VARCHAR100 "NOT NULL DEFAULT 'Shoepee'"
+        store_email VARCHAR100
+        store_phone VARCHAR20
+        store_address TEXT
+        tax_rate DECIMAL5_2 "DEFAULT 0.00"
+        shipping_fee DECIMAL10_2 "DEFAULT 0.00"
+        free_shipping_threshold DECIMAL10_2 "DEFAULT 0.00"
+        maintenance_mode BOOLEAN "DEFAULT FALSE"
+        created_at TIMESTAMP "DEFAULT CURRENT_TIMESTAMP"
+        updated_at TIMESTAMP "DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
     }
 ```
 
