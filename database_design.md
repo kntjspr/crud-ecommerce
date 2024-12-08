@@ -10,35 +10,41 @@ erDiagram
     CUSTOMER ||--o{ ORDER : places
     CUSTOMER ||--o{ REVIEW : writes
     CUSTOMER ||--o{ CART : has
+    CUSTOMER ||--|| CUSTOMER_ADDRESS : has
     EMPLOYEE ||--o{ ORDER : processes
+    EMPLOYEE ||--|| EMPLOYEE_ADDRESS : has
+    EMPLOYEE }|--|| DEPARTMENT : belongs_to
+    EMPLOYEE }|--|| JOB_POSITION : has
+    EMPLOYEE }|--|| ISSUE_TRACKER : manages
     PRODUCT ||--o{ REVIEW : receives
     PRODUCT ||--o{ ORDERITEM : contains
     PRODUCT ||--o{ PRODUCTIMAGE : has
+    PRODUCT ||--o{ CART : in
     PRODUCT }|--|| CATEGORY : belongs_to
     ORDER ||--|{ ORDERITEM : includes
     ORDER ||--|| PAYMENT : has
     ORDER ||--|| TRANSACTION : generates
     SHIPPING ||--|| TRANSACTION : has
+    SHIPPING ||--|| SHIPPING_ADDRESS : delivers_to
+    SHIPPING }|--|| SHIPPING_METHOD : uses
     PAYMENT_METHOD ||--|| PAYMENT : uses
-    SHIPPING_METHOD ||--|| SHIPPING : uses
-    EMPLOYEE }|--|| DEPARTMENT : belongs_to
-    EMPLOYEE }|--|| JOB_POSITION : has
-    EMPLOYEE }|--|| ISSUE_TRACKER : has
+    TRANSACTION ||--|| RECEIPT : generates
 ```
 
 ## 2. Logical Design
-Entity relationships with attributes (without data types).
+Entity relationships with attributes.
 
 ```mermaid
 erDiagram
     CUSTOMER {
         CustomerID PK
-        Username
+        Username UK
         FirstName
         LastName
         Email
         Password
         PhoneNumber
+        CustomerAddress FK
         Gender
         Birthday
     }
@@ -47,15 +53,19 @@ erDiagram
         FirstName
         LastName
         PhoneNumber
+        EmployeeAddress FK
         Gender
         Birthday
         Email
         Password
+        Department FK
         Salary
         SSSNumber
         PagIBIG
         PhilHealth
         TIN
+        IssueTrackerID FK
+        PositionID FK
         IsAdmin
         IsActive
     }
@@ -86,8 +96,8 @@ erDiagram
     SHIPPING {
         ShippingID PK
         ShippingStatus
-        AddressID FK
-        MethodID FK
+        ShippingAddressID FK
+        ShippingMethodID FK
     }
 ```
 
@@ -97,70 +107,98 @@ Complete database schema with data types and constraints.
 ```mermaid
 erDiagram
     CUSTOMER {
-        INT(5) Customer_ID PK
-        VARCHAR(50) Username UK
-        VARCHAR(50) First_Name
-        VARCHAR(50) Last_Name
-        VARCHAR(50) Email
-        VARCHAR(255) Password
-        VARCHAR(20) Phone_Number
-        INT(5) Customer_Address FK
-        VARCHAR(10) Gender
+        INT5 Customer_ID PK
+        VARCHAR50 Username UK
+        VARCHAR50 First_Name "NOT NULL"
+        VARCHAR50 Last_Name "NOT NULL"
+        VARCHAR50 Email "NOT NULL"
+        VARCHAR255 Password "NOT NULL"
+        VARCHAR20 Phone_Number
+        INT5 Customer_Address FK
+        VARCHAR10 Gender
         DATETIME Birthday
     }
+    EMPLOYEE {
+        INT5 Employee_ID PK
+        VARCHAR25 First_Name "NOT NULL"
+        VARCHAR25 Last_Name "NOT NULL"
+        VARCHAR20 Phone_Number
+        INT5 Employee_Address FK
+        VARCHAR10 Gender
+        DATETIME Birthday
+        VARCHAR50 Email
+        VARCHAR255 Password "NOT NULL"
+        INT5 Department FK
+        DECIMAL10_2 Salary
+        VARCHAR20 SSS_Number
+        VARCHAR20 Pag_IBIG
+        VARCHAR20 PhilHealth
+        VARCHAR20 TIN
+        INT5 Issue_Tracker_ID FK
+        INT5 Position_ID FK
+        BOOLEAN Is_Admin "DEFAULT FALSE"
+        BOOLEAN Is_Active "DEFAULT TRUE"
+    }
     PRODUCT {
-        INT(5) Product_ID PK
-        VARCHAR(100) Product_Name
-        VARCHAR(500) Description
-        DECIMAL(10,2) Price
-        INT(5) Stock
-        INT(5) Category_ID FK
+        INT5 Product_ID PK
+        VARCHAR100 Product_Name "NOT NULL"
+        VARCHAR500 Description
+        DECIMAL10_2 Price "NOT NULL"
+        INT5 Stock "NOT NULL"
+        INT5 Category_ID FK
     }
-    ORDER {
-        INT(5) Order_ID PK
-        INT(5) Customer_ID FK
-        DATETIME Order_Date
-        DECIMAL(10,2) Total_Amount
-        INT(5) Employee_ID FK
+    CART {
+        INT Cart_ID PK
+        INT Customer_ID FK "NOT NULL"
+        INT Product_ID FK "NOT NULL"
+        INT Quantity "DEFAULT 1"
+        TIMESTAMP Added_At "DEFAULT CURRENT_TIMESTAMP"
     }
-    PAYMENT {
-        INT Payment_ID PK
-        INT Order_ID FK
-        INT Payment_Method_ID FK
-        VARCHAR(50) Payment_Status
-        DATETIME Payment_Date
-        DECIMAL(10,2) Amount
+    ORDERITEM {
+        INT OrderItem_ID PK
+        INT Order_ID FK "NOT NULL"
+        INT Product_ID FK "NOT NULL"
+        INT Quantity "NOT NULL"
+        DECIMAL10_2 Price "NOT NULL"
     }
-    TRANSACTION {
-        INT(5) Transaction_ID PK
-        INT(5) Order_ID FK
-        INT(5) Shipping_ID FK
-        INT(5) Receipt_ID FK
-        INT(5) Product_ID FK
-        INT(5) Payment_ID FK
-        INT(5) Quantity
+    SETTINGS {
+        INT id PK
+        VARCHAR100 store_name "DEFAULT 'Shoepee'"
+        VARCHAR100 store_email
+        VARCHAR20 store_phone
+        TEXT store_address
+        DECIMAL5_2 tax_rate "DEFAULT 0.00"
+        DECIMAL10_2 shipping_fee "DEFAULT 0.00"
+        DECIMAL10_2 free_shipping_threshold "DEFAULT 0.00"
+        BOOLEAN maintenance_mode "DEFAULT FALSE"
+        TIMESTAMP created_at "DEFAULT CURRENT_TIMESTAMP"
+        TIMESTAMP updated_at "DEFAULT CURRENT_TIMESTAMP"
     }
 ```
 
 ## Key Features
 
-1. Full employee management system with HR data
-2. Complete order processing system
-3. Multi-address support (Employee, Customer, Shipping)
+1. Full employee management system with HR data (SSS, PhilHealth, TIN, PagIBIG)
+2. Complete order processing system with order items tracking
+3. Multi-address support (Employee, Customer, Shipping addresses as separate entities)
 4. Product management with categories and images
-5. Review and rating system
-6. Multiple payment and shipping methods
-7. Cart system for customers
-8. Issue tracking for employees
-9. Store settings management
-10. Comprehensive transaction tracking
+5. Review and rating system with 1-5 scale validation
+6. Multiple payment methods (Credit Card, E-Wallet, Cash on Delivery)
+7. Multiple shipping methods with cost and delivery time estimates
+8. Cart system with unique customer-product combinations
+9. Store settings management with tax rates and shipping thresholds
+10. Comprehensive transaction tracking with receipts
+11. Issue tracking system for employees
+12. Default admin account system
 
 ## Design Principles
 
-- Referential integrity through foreign keys
-- Data normalization to prevent redundancy
-- Proper data type selection for efficiency
-- Appropriate field lengths for storage optimization
-- Security features (password hashing)
-- Audit capabilities (timestamps)
+1. Referential integrity through foreign key constraints
+2. Data normalization (separate address entities)
+3. Proper data type selection (VARCHAR lengths optimized)
+4. Security features (password hashing)
+5. Audit capabilities (timestamps on critical tables)
+6. Default values for critical fields
+7. Unique constraints where necessary (Username, Email)
+8. Check constraints (Rating 1-5)
 ``` 
