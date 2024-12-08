@@ -12,7 +12,7 @@ Final project for Fundamentals of Database Systems - Team Ciderella
 ## Overview
 Shoepee is a comprehensive e-commerce platform specializing in footwear. The system includes both customer-facing features for shopping and administrative tools for managing the store.
 
-[Insert Screenshot of Homepage]
+![localhost_index php](https://github.com/user-attachments/assets/b900191f-af3d-4929-9d9a-df2d358a8119)
 
 ## Features
 
