@@ -76,6 +76,7 @@ erDiagram
     Customer ||--o{ Order : places
     Customer ||--o{ Cart : has
     Customer ||--o{ Review : writes
+    Customer ||--|| Customer_Address : has
     Customer {
         int Customer_ID PK
         varchar Username UK
@@ -85,15 +86,25 @@ erDiagram
         varchar Password
         varchar Phone_Number
         int Customer_Address FK
+        varchar Gender
+        datetime Birthday
     }
 
     Employee ||--o{ Order : manages
+    Employee ||--|| Employee_Address : has
+    Employee ||--|| Department : belongs_to
+    Employee ||--|| Job_Position : has
+    Employee ||--o| Issue_Tracker : has
     Employee {
         int Employee_ID PK
         varchar First_Name
         varchar Last_Name
         varchar Email
         varchar Password
+        int Employee_Address FK
+        int Department FK
+        int Position_ID FK
+        int Issue_Tracker_ID FK
         boolean Is_Admin
         boolean Is_Active
     }
@@ -102,6 +113,7 @@ erDiagram
     Product ||--o{ Cart : in
     Product ||--o{ Review : has
     Product ||--|| Category : belongs_to
+    Product ||--o{ ProductImage : has
     Product {
         int Product_ID PK
         varchar Product_Name
@@ -117,11 +129,13 @@ erDiagram
     }
 
     Order ||--o{ OrderItem : contains
-    Order ||--|| Payment : has
+    Order ||--o{ Transaction : has
     Order ||--|| Customer : placed_by
+    Order ||--o| Employee : managed_by
     Order {
         int Order_ID PK
         int Customer_ID FK
+        int Employee_ID FK
         datetime Order_Date
         decimal Total_Amount
     }
@@ -135,6 +149,7 @@ erDiagram
     }
 
     Payment ||--|| Payment_Method : uses
+    Payment ||--|| Order : belongs_to
     Payment {
         int Payment_ID PK
         int Order_ID FK
@@ -144,11 +159,14 @@ erDiagram
         decimal Amount
     }
 
-    Payment_Method {
-        int Payment_Method_ID PK
-        varchar Method_Name
-        varchar Provider
-        decimal Transaction_Fee
+    Transaction {
+        int Transaction_ID PK
+        int Order_ID FK
+        int Product_ID FK
+        int Shipping_ID FK
+        int Receipt_ID FK
+        int Payment_ID FK
+        int Quantity
     }
 
     Shipping ||--|| Shipping_Method : uses
@@ -165,15 +183,35 @@ erDiagram
         int Customer_ID FK
         int Product_ID FK
         int Quantity
+        timestamp Added_At
     }
 
     Settings {
         int id PK
         varchar store_name
         varchar store_email
+        varchar store_phone
+        text store_address
         decimal tax_rate
         decimal shipping_fee
+        decimal free_shipping_threshold
         boolean maintenance_mode
+    }
+
+    ProductImage {
+        int Image_ID PK
+        int Product_ID FK
+        varchar Image_Path
+        timestamp Created_At
+    }
+
+    Review {
+        int Review_ID PK
+        int Product_ID FK
+        int Customer_ID FK
+        int Rating
+        varchar Review_Text
+        datetime Review_Date
     }
 ```
 
