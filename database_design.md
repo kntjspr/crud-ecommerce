@@ -7,42 +7,57 @@ High-level view of main entities and their relationships.
 
 ```mermaid
 erDiagram
+    %% Customer Relations
     CUSTOMER ||--o{ ORDER : "places"
     CUSTOMER ||--o{ REVIEW : "writes"
     CUSTOMER ||--o{ CART : "has"
     CUSTOMER ||--|| CUSTOMER_ADDRESS : "has"
+    
+    %% Employee Relations
     EMPLOYEE ||--o{ ORDER : "processes"
     EMPLOYEE ||--|| EMPLOYEE_ADDRESS : "has"
     EMPLOYEE }|--|| DEPARTMENT : "belongs_to"
     EMPLOYEE }|--|| JOB_POSITION : "has"
     EMPLOYEE }|--|| ISSUE_TRACKER : "manages"
+    
+    %% Product Relations
     PRODUCT ||--o{ REVIEW : "receives"
     PRODUCT ||--o{ ORDERITEM : "contains"
     PRODUCT ||--o{ PRODUCTIMAGE : "has"
     PRODUCT ||--o{ CART : "in"
     PRODUCT }|--|| CATEGORY : "belongs_to"
+    
+    %% Order Relations
     ORDER ||--|{ ORDERITEM : "includes"
     ORDER ||--|| PAYMENT : "has"
     ORDER ||--|| TRANSACTION : "generates"
+    
+    %% Shipping Relations
     SHIPPING ||--|| TRANSACTION : "has"
     SHIPPING ||--|| SHIPPING_ADDRESS : "delivers_to"
     SHIPPING }|--|| SHIPPING_METHOD : "uses"
+    
+    %% Payment Relations
     PAYMENT_METHOD ||--|| PAYMENT : "uses"
+    PAYMENT ||--|| TRANSACTION : "processes"
+    
+    %% Transaction Relations
     TRANSACTION ||--|| RECEIPT : "generates"
+    TRANSACTION ||--|| PRODUCT : "involves"
 ```
 
 ## 2. Logical Design
-Entity relationships with attributes.
+Entity relationships with attributes and relationships.
 
 ```mermaid
 erDiagram
     CUSTOMER {
         int CustomerID PK
-        string Username UK
-        string FirstName
-        string LastName
-        string Email
-        string Password
+        string Username UK "NOT NULL"
+        string FirstName "NOT NULL"
+        string LastName "NOT NULL"
+        string Email "NOT NULL"
+        string Password "NOT NULL"
         string PhoneNumber
         int CustomerAddress FK
         string Gender
@@ -50,14 +65,14 @@ erDiagram
     }
     EMPLOYEE {
         int EmployeeID PK
-        string FirstName
-        string LastName
+        string FirstName "NOT NULL"
+        string LastName "NOT NULL"
         string PhoneNumber
         int EmployeeAddress FK
         string Gender
         datetime Birthday
         string Email
-        string Password
+        string Password "NOT NULL"
         int Department FK
         decimal Salary
         string SSSNumber
@@ -66,22 +81,22 @@ erDiagram
         string TIN
         int IssueTrackerID FK
         int PositionID FK
-        boolean IsAdmin
-        boolean IsActive
+        boolean IsAdmin "DEFAULT FALSE"
+        boolean IsActive "DEFAULT TRUE"
     }
     PRODUCT {
         int ProductID PK
-        string ProductName
+        string ProductName "NOT NULL"
         string Description
-        decimal Price
-        int Stock
+        decimal Price "NOT NULL"
+        int Stock "NOT NULL"
         int CategoryID FK
     }
     ORDER {
         int OrderID PK
-        int CustomerID FK
-        datetime OrderDate
-        decimal TotalAmount
+        int CustomerID FK "NOT NULL"
+        datetime OrderDate "NOT NULL"
+        decimal TotalAmount "NOT NULL"
         int EmployeeID FK
     }
     TRANSACTION {
@@ -91,7 +106,7 @@ erDiagram
         int ReceiptID FK
         int ProductID FK
         int PaymentID FK
-        int Quantity
+        int Quantity "DEFAULT 1"
     }
     SHIPPING {
         int ShippingID PK
@@ -99,16 +114,62 @@ erDiagram
         int ShippingAddressID FK
         int ShippingMethodID FK
     }
+    CART {
+        int CartID PK
+        int CustomerID FK "NOT NULL"
+        int ProductID FK "NOT NULL"
+        int Quantity "DEFAULT 1"
+        timestamp AddedAt "DEFAULT NOW"
+        UK "CustomerID, ProductID"
+    }
+    REVIEW {
+        int ReviewID PK
+        int ProductID FK
+        int CustomerID FK
+        int Rating "CHECK (1-5)"
+        string ReviewText
+        datetime ReviewDate "NOT NULL"
+    }
 ```
 
 ## 3. Physical Design
-Complete database schema with data types and constraints.
+Complete database schema with data types, constraints, and relationships.
 
 ```mermaid
 erDiagram
+    %% Address Tables
+    CUSTOMER_ADDRESS {
+        int Customer_Address_ID "PK"
+        varchar25 Street "NOT NULL"
+        varchar25 Barangay "NOT NULL"
+        varchar25 Town_City "NOT NULL"
+        varchar25 Province "NOT NULL"
+        varchar25 Region "NOT NULL"
+        int4 Postal_Code "NOT NULL"
+    }
+    EMPLOYEE_ADDRESS {
+        int Employee_Address_ID "PK"
+        varchar25 Street "NOT NULL"
+        varchar25 Barangay "NOT NULL"
+        varchar25 Town_City "NOT NULL"
+        varchar25 Province "NOT NULL"
+        varchar25 Region "NOT NULL"
+        int4 Postal_Code "NOT NULL"
+    }
+    SHIPPING_ADDRESS {
+        int Shipping_Address_ID "PK"
+        varchar25 Street "NOT NULL"
+        varchar25 Barangay "NOT NULL"
+        varchar25 Town_City "NOT NULL"
+        varchar25 Province "NOT NULL"
+        varchar10 Region "NOT NULL"
+        int4 Postal_Code "NOT NULL"
+    }
+
+    %% Core Tables
     CUSTOMER {
         int Customer_ID "PK"
-        varchar50 Username "UK"
+        varchar50 Username "UK NOT NULL"
         varchar50 First_Name "NOT NULL"
         varchar50 Last_Name "NOT NULL"
         varchar50 Email "NOT NULL"
@@ -147,12 +208,15 @@ erDiagram
         int Stock "NOT NULL"
         int Category_ID "FK"
     }
+
+    %% Transaction Related Tables
     CART {
         int Cart_ID "PK"
         int Customer_ID "FK NOT NULL"
         int Product_ID "FK NOT NULL"
         int Quantity "DEFAULT 1"
-        timestamp Added_At "DEFAULT CURRENT_TIMESTAMP"
+        timestamp Added_At "DEFAULT NOW"
+        UK "Customer_ID, Product_ID"
     }
     ORDERITEM {
         int OrderItem_ID "PK"
@@ -161,6 +225,25 @@ erDiagram
         int Quantity "NOT NULL"
         decimal10_2 Price "NOT NULL"
     }
+    PAYMENT {
+        int Payment_ID "PK"
+        int Order_ID "FK"
+        int Payment_Method_ID "FK"
+        varchar50 Payment_Status "DEFAULT 'Pending'"
+        datetime Payment_Date
+        decimal10_2 Amount "NOT NULL"
+    }
+    TRANSACTION {
+        int Transaction_ID "PK"
+        int Order_ID "FK"
+        int Shipping_ID "FK"
+        int Receipt_ID "FK"
+        int Product_ID "FK"
+        int Payment_ID "FK"
+        int Quantity "DEFAULT 1"
+    }
+
+    %% Configuration Tables
     SETTINGS {
         int id "PK"
         varchar100 store_name "DEFAULT 'Shoepee'"
@@ -171,8 +254,20 @@ erDiagram
         decimal10_2 shipping_fee "DEFAULT 0.00"
         decimal10_2 free_shipping_threshold "DEFAULT 0.00"
         boolean maintenance_mode "DEFAULT FALSE"
-        timestamp created_at "DEFAULT CURRENT_TIMESTAMP"
-        timestamp updated_at "DEFAULT CURRENT_TIMESTAMP"
+        timestamp created_at "DEFAULT NOW"
+        timestamp updated_at "ON UPDATE NOW"
+    }
+    SHIPPING_METHOD {
+        int Shipping_Method_ID "PK"
+        varchar50 Method_Name "UK"
+        decimal10_2 Cost
+        varchar50 Estimated_Delivery_Time
+    }
+    PAYMENT_METHOD {
+        int Payment_Method_ID "PK"
+        varchar100 Method_Name "NOT NULL"
+        varchar100 Provider "NOT NULL"
+        decimal10_2 Transaction_Fee
     }
 ```
 
@@ -201,4 +296,6 @@ erDiagram
 6. Default values for critical fields
 7. Unique constraints where necessary (Username, Email)
 8. Check constraints (Rating 1-5)
+9. Cascade deletes where appropriate (e.g., ProductImage)
+10. Proper indexing on foreign keys and unique constraints
 ``` 
