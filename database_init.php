@@ -4,10 +4,18 @@ $username = 'root';
 $password = '';
 
 try {
+
+    // Create fresh database
+    $pdo->exec("CREATE DATABASE shoepee_db");
+    echo "New database created successfully<br>";
+    
+    // Switch to the new database
+    $pdo->exec("USE shoepee_db");
+    
     // Connect to the database
     $pdo = new PDO("mysql:host=$host;dbname=shoepee_db", $username, $password);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
+
     // Create tables in correct order
     $queries = [
         // Independent tables first
@@ -208,7 +216,7 @@ try {
 
     // Insert initial data
     // Insert default department
-    $stmt = $pdo->prepare("INSERT INTO Department (Department_Name, Description) VALUES ('Administration', 'Administrative Department')");
+    $stmt = $pdo->prepare("INSERT INTO Department (Department_Name, Description) VALUES ('Executive', 'Executive Department')");
     $stmt->execute();
     echo "Default department created<br>";
 
@@ -262,7 +270,7 @@ try {
         [
             'Method_Name' => 'Credit Card',
             'Provider' => 'Visa/Mastercard',
-            'Transaction_Fee' => 0.00
+            'Transaction_Fee' => 1.00
         ],
         [
             'Method_Name' => 'PayPal',

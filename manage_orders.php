@@ -2,7 +2,7 @@
 session_start();
 require_once 'config/database.php';
 
-// Debug session data
+// Debug session data for development purposes (not for production)
 error_log("Session data: " . print_r($_SESSION, true));
 
 // Check if user is admin
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$shipping_status, $order_id]);
         $_SESSION['success_message'] = "Shipping status updated successfully";
     }
-    
+    // Update payment status
     if ($_POST['action'] === 'update_payment') {
         $payment_status = $_POST['payment_status'];
         // Update payment status in Payment table
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$payment_status, $order_id]);
         $_SESSION['success_message'] = "Payment status updated successfully";
     }
-    
+    // Delete order
     if ($_POST['action'] === 'delete_order') {
         try {
             $pdo->beginTransaction();

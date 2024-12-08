@@ -2,6 +2,7 @@
 session_start();
 require_once 'config/database.php';
 
+// Check if product ID is provided in query string
 if(!isset($_GET['id'])) {
     header("Location: products.php");
     exit();
@@ -29,7 +30,7 @@ $stmt = $pdo->prepare("SELECT * FROM ProductImage WHERE Product_ID = ?");
 $stmt->execute([$product_id]);
 $images = $stmt->fetchAll();
 
-// Get product reviews
+// Fetch product reviews
 $stmt = $pdo->prepare("
     SELECT r.*, c.Username 
     FROM Review r 

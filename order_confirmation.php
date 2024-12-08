@@ -35,7 +35,9 @@ $stmt = $pdo->prepare("
 $stmt->execute([$_GET['order_id'], $_SESSION['customer_id']]);
 $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// If order not found or doesn't belong to customer
+/* If order not found or doesn't belong to customer
+    We'll redirect to index page without any error message for security reasons.
+*/
 if (!$order) {
     header("Location: index.php");
     exit();

@@ -1,5 +1,8 @@
 <?php
+// Start the session
 session_start();
+
+// Include the database configuration
 require_once 'config/database.php';
 
 // If user is already logged in, redirect them
@@ -36,11 +39,13 @@ if(isset($_POST['login'])) {
         }
         exit();
     } else {
+        
         // Try customer login
         $stmt = $pdo->prepare("SELECT * FROM Customer WHERE Email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        // Check if the user exists and the password is correct
         if($user && password_verify($password, $user['Password'])) {
             $_SESSION['customer_id'] = $user['Customer_ID'];
             $_SESSION['user_name'] = $user['First_Name'] . ' ' . $user['Last_Name'];
