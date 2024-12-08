@@ -1,13 +1,6 @@
 # Shoepee - Online Shoe Store
 
-Final project for Fundamentals of Database Systems - Team Ciderella
-
-## Team Members
-- Kent Jasper C. Sisi
-- Harvie C. Babuyo
-- Precious Gamalo
-- Richter Anthony Yap
-- Thomas Gabriel Martinez
+Final project for Fundamentals of Database Systems
 
 ## Overview
 Shoepee is a comprehensive e-commerce platform specializing in footwear. The system includes both customer-facing features for shopping and administrative tools for managing the store.
@@ -41,32 +34,38 @@ Shoepee is a comprehensive e-commerce platform specializing in footwear. The sys
 
 ## Installation
 
-1. Clone the repository:
+### Prerequisites
+- PHP 7.4 or higher
+- MySQL Server
+- PDO PHP Extension
+- Web server (Apache/Nginx)
 
-```bash
-git clone https://github.com/kntjspr/crud-ecommerce.git
-```
+### Automatic Installation
+1. Copy all files to your web server directory
+2. Access the site through your web browser
+3. If this is a first-time installation, you'll be automatically redirected to the setup wizard
+4. Follow the setup wizard steps:
+   - System requirements check
+   - Database initialization
+   - Setup completion
 
-2. Set up your web server (e.g., XAMPP, WAMP) and place the files in the web root directory.
+### Manual Installation
+If you prefer manual installation:
+1. Create a MySQL database named `shoepee_db`
+2. Run `database_init.php` to create tables and initial data
+3. Access the site through your web browser
 
-3. Create the database:
-   - Navigate to `database_reset.php` in your browser
-   - Click "Initialize Database" to set up the database structure
-   - The system will create all necessary tables
+### Default Admin Credentials
+After installation, you can log in with:
+- Email: admin@shoepee.com
+- Password: admin123
 
-4. Configure database connection:
-   - Open `config/database.php`
-   - Update the database credentials if needed:
-     ```php
-     $host = 'localhost';
-     $username = 'root';
-     $password = '';
-     $database = 'shoepee_db';
-     ```
+**Important:** Change these credentials after your first login!
 
-5. Set up initial admin account:
-   - Use the employee registration page
-   - Default admin credentials will be created
+### Database Reset
+If you need to reset the database:
+1. Access `database_reset.php`
+2. Follow the prompts to reset and reinitialize the database
 
 ## Database Structure
 
@@ -99,12 +98,20 @@ erDiagram
         int Employee_ID PK
         varchar First_Name
         varchar Last_Name
+        varchar Phone_Number
+        int Employee_Address FK
+        varchar Gender
+        datetime Birthday
         varchar Email
         varchar Password
-        int Employee_Address FK
         int Department FK
-        int Position_ID FK
+        decimal Salary
+        varchar SSS_Number
+        varchar Pag_IBIG
+        varchar PhilHealth
+        varchar TIN
         int Issue_Tracker_ID FK
+        int Position_ID FK
         boolean Is_Admin
         boolean Is_Active
     }
@@ -135,9 +142,9 @@ erDiagram
     Order {
         int Order_ID PK
         int Customer_ID FK
-        int Employee_ID FK
         datetime Order_Date
         decimal Total_Amount
+        int Employee_ID FK
     }
 
     OrderItem {
@@ -159,12 +166,19 @@ erDiagram
         decimal Amount
     }
 
+    Payment_Method {
+        int Payment_Method_ID PK
+        varchar Method_Name
+        varchar Provider
+        decimal Transaction_Fee
+    }
+
     Transaction {
         int Transaction_ID PK
         int Order_ID FK
-        int Product_ID FK
         int Shipping_ID FK
         int Receipt_ID FK
+        int Product_ID FK
         int Payment_ID FK
         int Quantity
     }
@@ -176,6 +190,13 @@ erDiagram
         varchar Shipping_Status
         int Shipping_Address_ID FK
         int Shipping_Method_ID FK
+    }
+
+    Shipping_Method {
+        int Shipping_Method_ID PK
+        varchar Method_Name UK
+        decimal Cost
+        varchar Estimated_Delivery_Time
     }
 
     Cart {
@@ -196,6 +217,8 @@ erDiagram
         decimal shipping_fee
         decimal free_shipping_threshold
         boolean maintenance_mode
+        timestamp created_at
+        timestamp updated_at
     }
 
     ProductImage {
@@ -212,6 +235,61 @@ erDiagram
         int Rating
         varchar Review_Text
         datetime Review_Date
+    }
+
+    Receipt {
+        int Receipt_ID PK
+        decimal Tax_Amount
+        decimal Total_Amount
+        varchar Type
+    }
+
+    Job_Position {
+        int Position_ID PK
+        varchar Title
+        varchar Description
+    }
+
+    Department {
+        int Department_ID PK
+        varchar Department_Name
+        varchar Description
+    }
+
+    Issue_Tracker {
+        int Issue_Tracker_ID PK
+        varchar Description
+        varchar Status
+    }
+
+    Employee_Address {
+        int Employee_Address_ID PK
+        varchar Street
+        varchar Barangay
+        varchar Town_City
+        varchar Province
+        varchar Region
+        int Postal_Code
+    }
+
+    Customer_Address {
+        int Customer_Address_ID PK
+        varchar Street
+        varchar Barangay
+        varchar Town_City
+        varchar Province
+        varchar Region
+        int Postal_Code
+    }
+
+    Shipping_Address {
+        int Shipping_Address_ID PK
+        varchar Street
+        varchar Barangay
+        varchar Town_City
+        varchar Province
+        varchar Region
+        int Postal_Code
     }
 ```
 
@@ -238,14 +316,34 @@ erDiagram
    - Payment methods
    - Shipping methods
 
-## Screenshots
-[Insert key screenshots of the system]
-- Homepage
-- Product Listing
-- Shopping Cart
-- Admin Dashboard
-- Order Management
-- Product Management
+## Security
+- Passwords are hashed using PHP's password_hash()
+- PDO prepared statements for database queries
+- Input validation and sanitization
+
+## Directory Structure
+```
+shoepee/
+├── config/
+│   └── database.php
+├── uploads/
+│   └── products/
+├── index.php
+├── setup.php
+├── database_init.php
+└── database_reset.php
+```
+
+## Troubleshooting
+1. Database Connection Issues
+   - Verify MySQL is running
+   - Check database credentials in config/database.php
+   - Ensure proper permissions are set
+
+2. Setup Wizard Issues
+   - Verify PHP version (7.4+)
+   - Enable PDO extension
+   - Set proper file permissions
 
 ## Contributing
 This project is part of an academic requirement. While we appreciate feedback, we are not accepting direct contributions at this time.
