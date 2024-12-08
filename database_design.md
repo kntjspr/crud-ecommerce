@@ -6,36 +6,42 @@
 ```mermaid
 graph TB
     subgraph User Management
-        Customer
-        Employee
-        Address
+        Customer[Customer<br>PK: Customer_ID]
+        Employee[Employee<br>PK: Employee_ID]
+        CustomerAddr[Customer Address<br>PK: Customer_Address_ID]
+        EmployeeAddr[Employee Address<br>PK: Employee_Address_ID]
+        Department[Department<br>PK: Department_ID]
+        JobPosition[Job Position<br>PK: Position_ID]
+        IssueTracker[Issue Tracker<br>PK: Issue_Tracker_ID]
     end
     
     subgraph Product Management
-        Product
-        Category
-        Review
-        ProductImage
+        Product[Product<br>PK: Product_ID]
+        Category[Category<br>PK: Category_ID]
+        Review[Review<br>PK: Review_ID]
+        ProductImage[Product Image<br>PK: Image_ID]
     end
     
     subgraph Order Processing
-        Order
-        OrderItem
-        Cart
-        Payment
-        Shipping
+        Order[Order<br>PK: Order_ID]
+        OrderItem[Order Item<br>PK: OrderItem_ID]
+        Cart[Cart<br>PK: Cart_ID]
+        Payment[Payment<br>PK: Payment_ID]
+        PaymentMethod[Payment Method<br>PK: Payment_Method_ID]
+        Shipping[Shipping<br>PK: Shipping_ID]
+        ShippingMethod[Shipping Method<br>PK: Shipping_Method_ID]
+        ShippingAddr[Shipping Address<br>PK: Shipping_Address_ID]
+        Receipt[Receipt<br>PK: Receipt_ID]
+        Transaction[Transaction<br>PK: Transaction_ID]
     end
     
-    subgraph Store Management
-        Department
-        JobPosition[Job Position]
-        Settings
-        IssueTracker[Issue Tracker]
+    subgraph System Management
+        Settings[Settings<br>PK: id]
     end
     
     %% User Management Relations
-    Customer -->|has| Address
-    Employee -->|has| Address
+    Customer -->|has| CustomerAddr
+    Employee -->|has| EmployeeAddr
     Employee -->|belongs to| Department
     Employee -->|has| JobPosition
     Employee -->|tracks| IssueTracker
@@ -54,7 +60,16 @@ graph TB
     Customer -->|has| Cart
     Product -->|stored in| Cart
     Order -->|has| Payment
+    Payment -->|uses| PaymentMethod
     Order -->|has| Shipping
+    Shipping -->|uses| ShippingMethod
+    Shipping -->|delivers to| ShippingAddr
+    Order -->|generates| Receipt
+    Transaction -->|links| Order
+    Transaction -->|links| Payment
+    Transaction -->|links| Shipping
+    Transaction -->|links| Receipt
+    Transaction -->|links| Product
 ```
 
 ### Detailed Entity Relationships
@@ -91,6 +106,13 @@ erDiagram
     Payment ||--|| Payment_Method : uses
     Shipping ||--|| Shipping_Method : uses
     Shipping ||--|| Shipping_Address : delivers_to
+    
+    %% Transaction Links
+    Transaction ||--|| Order : links
+    Transaction ||--|| Shipping : links
+    Transaction ||--|| Receipt : links
+    Transaction ||--|| Product : links
+    Transaction ||--|| Payment : links
 ```
 
 ## 2. Logical Design
@@ -99,70 +121,6 @@ erDiagram
 ```mermaid
 classDiagram
     class Customer {
-        +CustomerID: INT
-        +Username: VARCHAR
-        +FirstName: VARCHAR
-        +LastName: VARCHAR
-        +Email: VARCHAR
-        +Password: VARCHAR
-        +PhoneNumber: VARCHAR
-        +CustomerAddressID: INT
-        +Gender: VARCHAR
-        +Birthday: DATETIME
-    }
-    
-    class Employee {
-        +EmployeeID: INT
-        +FirstName: VARCHAR
-        +LastName: VARCHAR
-        +PhoneNumber: VARCHAR
-        +EmployeeAddressID: INT
-        +Gender: VARCHAR
-        +Birthday: DATETIME
-        +Email: VARCHAR
-        +Password: VARCHAR
-        +DepartmentID: INT
-        +Salary: DECIMAL
-        +SSSNumber: VARCHAR
-        +PagIBIG: VARCHAR
-        +PhilHealth: VARCHAR
-        +TIN: VARCHAR
-        +IssueTrackerID: INT
-        +PositionID: INT
-        +IsAdmin: BOOLEAN
-        +IsActive: BOOLEAN
-    }
-    
-    class Product {
-        +ProductID: INT
-        +ProductName: VARCHAR
-        +Description: VARCHAR
-        +Price: DECIMAL
-        +Stock: INT
-        +CategoryID: INT
-    }
-    
-    class Order {
-        +OrderID: INT
-        +CustomerID: INT
-        +OrderDate: DATETIME
-        +TotalAmount: DECIMAL
-        +EmployeeID: INT
-    }
-    
-    Customer "1" -- "0..*" Order
-    Employee "1" -- "0..*" Order
-    Product "1" -- "0..*" OrderItem
-    Order "1" -- "1..*" OrderItem
-```
-
-## 3. Physical Design
-
-### Database Schema
-```mermaid
-classDiagram
-    class Customer {
-        <<Table>>
         +Customer_ID INT(5) PK
         +Username VARCHAR(50) UK
         +First_Name VARCHAR(50)
@@ -176,7 +134,6 @@ classDiagram
     }
     
     class Employee {
-        <<Table>>
         +Employee_ID INT(5) PK
         +First_Name VARCHAR(25)
         +Last_Name VARCHAR(25)
@@ -198,8 +155,32 @@ classDiagram
         +Is_Active BOOLEAN
     }
     
+    class Address {
+        <<Interface>>
+        +Street VARCHAR(25)
+        +Barangay VARCHAR(25)
+        +Town_City VARCHAR(25)
+        +Province VARCHAR(25)
+        +Region VARCHAR(25)
+        +Postal_Code INT(4)
+    }
+    
+    class Customer_Address {
+        +Customer_Address_ID INT(5) PK
+        +implements Address
+    }
+    
+    class Employee_Address {
+        +Employee_Address_ID INT(5) PK
+        +implements Address
+    }
+    
+    class Shipping_Address {
+        +Shipping_Address_ID INT(5) PK
+        +implements Address
+    }
+    
     class Product {
-        <<Table>>
         +Product_ID INT(5) PK
         +Product_Name VARCHAR(100)
         +Description VARCHAR(500)
@@ -208,8 +189,12 @@ classDiagram
         +Category_ID INT(5) FK
     }
     
+    class Category {
+        +Category_ID INT(5) PK
+        +Category_Name VARCHAR(100)
+    }
+    
     class Order {
-        <<Table>>
         +Order_ID INT(5) PK
         +Customer_ID INT(5) FK
         +Order_Date DATETIME
@@ -218,7 +203,6 @@ classDiagram
     }
     
     class OrderItem {
-        <<Table>>
         +OrderItem_ID INT PK
         +Order_ID INT FK
         +Product_ID INT FK
@@ -227,7 +211,6 @@ classDiagram
     }
     
     class Payment {
-        <<Table>>
         +Payment_ID INT PK
         +Order_ID INT FK
         +Payment_Method_ID INT FK
@@ -236,12 +219,65 @@ classDiagram
         +Amount DECIMAL(10,2)
     }
     
+    class Payment_Method {
+        +Payment_Method_ID INT(5) PK
+        +Method_Name VARCHAR(100)
+        +Provider VARCHAR(100)
+        +Transaction_Fee DECIMAL(10,2)
+    }
+    
     class Shipping {
-        <<Table>>
         +Shipping_ID INT(5) PK
         +Shipping_Status VARCHAR(20)
         +Shipping_Address_ID INT(5) FK
         +Shipping_Method_ID INT(5) FK
+    }
+    
+    class Shipping_Method {
+        +Shipping_Method_ID INT PK
+        +Method_Name VARCHAR(50) UK
+        +Cost DECIMAL(10,2)
+        +Estimated_Delivery_Time VARCHAR(50)
+    }
+    
+    class Transaction {
+        +Transaction_ID INT(5) PK
+        +Order_ID INT(5) FK
+        +Shipping_ID INT(5) FK
+        +Receipt_ID INT(5) FK
+        +Product_ID INT(5) FK
+        +Payment_ID INT(5) FK
+        +Quantity INT(5)
+    }
+    
+    class Settings {
+        +id INT PK
+        +store_name VARCHAR(100)
+        +store_email VARCHAR(100)
+        +store_phone VARCHAR(20)
+        +store_address TEXT
+        +tax_rate DECIMAL(5,2)
+        +shipping_fee DECIMAL(10,2)
+        +free_shipping_threshold DECIMAL(10,2)
+        +maintenance_mode BOOLEAN
+        +created_at TIMESTAMP
+        +updated_at TIMESTAMP
+    }
+    
+    class Review {
+        +Review_ID INT(5) PK
+        +Product_ID INT(5) FK
+        +Customer_ID INT(5) FK
+        +Rating INT(1)
+        +Review_Text VARCHAR(500)
+        +Review_Date DATETIME
+    }
+    
+    class Receipt {
+        +Receipt_ID INT(5) PK
+        +Tax_Amount DECIMAL(10,2)
+        +Total_Amount DECIMAL(10,2)
+        +Type VARCHAR(20)
     }
     
     Customer "1" -- "0..*" Order
@@ -250,21 +286,12 @@ classDiagram
     Order "1" -- "1..*" OrderItem
     Order "1" -- "1" Payment
     Order "1" -- "1" Shipping
+    Customer_Address --|> Address
+    Employee_Address --|> Address
+    Shipping_Address --|> Address
 ```
 
-### Table Structures
+## 3. Physical Design
 
-[Previous SQL CREATE TABLE statements remain the same...]
-
-### Indexes and Optimization
-[Previous content remains the same...]
-
-### Data Types and Constraints
-[Previous content remains the same...]
-
-### Security Measures
-[Previous content remains the same...]
-
-### Performance Considerations
-[Previous content remains the same...]
+[Previous SQL CREATE TABLE statements and other sections remain the same...]
 ``` 
