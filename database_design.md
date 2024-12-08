@@ -1,297 +1,166 @@
 # Shoepee Database Design
 
+This document outlines the database design for the Shoepee e-commerce system. The design is critical as it handles sensitive customer data, financial transactions, and inventory management.
+
 ## 1. Conceptual Design
+High-level view of main entities and their relationships.
 
-### Entity-Relationship Diagram (High Level)
-```mermaid
-graph TB
-    subgraph User Management
-        Customer[Customer<br>PK: Customer_ID]
-        Employee[Employee<br>PK: Employee_ID]
-        CustomerAddr[Customer Address<br>PK: Customer_Address_ID]
-        EmployeeAddr[Employee Address<br>PK: Employee_Address_ID]
-        Department[Department<br>PK: Department_ID]
-        JobPosition[Job Position<br>PK: Position_ID]
-        IssueTracker[Issue Tracker<br>PK: Issue_Tracker_ID]
-    end
-    
-    subgraph Product Management
-        Product[Product<br>PK: Product_ID]
-        Category[Category<br>PK: Category_ID]
-        Review[Review<br>PK: Review_ID]
-        ProductImage[Product Image<br>PK: Image_ID]
-    end
-    
-    subgraph Order Processing
-        Order[Order<br>PK: Order_ID]
-        OrderItem[Order Item<br>PK: OrderItem_ID]
-        Cart[Cart<br>PK: Cart_ID]
-        Payment[Payment<br>PK: Payment_ID]
-        PaymentMethod[Payment Method<br>PK: Payment_Method_ID]
-        Shipping[Shipping<br>PK: Shipping_ID]
-        ShippingMethod[Shipping Method<br>PK: Shipping_Method_ID]
-        ShippingAddr[Shipping Address<br>PK: Shipping_Address_ID]
-        Receipt[Receipt<br>PK: Receipt_ID]
-        Transaction[Transaction<br>PK: Transaction_ID]
-    end
-    
-    subgraph System Management
-        Settings[Settings<br>PK: id]
-    end
-    
-    %% User Management Relations
-    Customer -->|has| CustomerAddr
-    Employee -->|has| EmployeeAddr
-    Employee -->|belongs to| Department
-    Employee -->|has| JobPosition
-    Employee -->|tracks| IssueTracker
-    
-    %% Product Management Relations
-    Product -->|belongs to| Category
-    Product -->|has many| ProductImage
-    Product -->|has many| Review
-    Customer -->|writes| Review
-    
-    %% Order Processing Relations
-    Customer -->|places| Order
-    Employee -->|manages| Order
-    Order -->|contains| OrderItem
-    Product -->|included in| OrderItem
-    Customer -->|has| Cart
-    Product -->|stored in| Cart
-    Order -->|has| Payment
-    Payment -->|uses| PaymentMethod
-    Order -->|has| Shipping
-    Shipping -->|uses| ShippingMethod
-    Shipping -->|delivers to| ShippingAddr
-    Order -->|generates| Receipt
-    Transaction -->|links| Order
-    Transaction -->|links| Payment
-    Transaction -->|links| Shipping
-    Transaction -->|links| Receipt
-    Transaction -->|links| Product
-```
-
-### Detailed Entity Relationships
 ```mermaid
 erDiagram
-    %% User Management
-    Customer ||--o{ Order : places
-    Customer ||--o{ Cart : has
-    Customer ||--o{ Review : writes
-    Customer ||--|| Customer_Address : has
-    
-    Employee ||--o{ Order : manages
-    Employee ||--|| Employee_Address : has
-    Employee ||--|| Department : belongs_to
-    Employee ||--|| Job_Position : has
-    Employee ||--o| Issue_Tracker : has
-    
-    %% Product Management
-    Product ||--o{ OrderItem : contains
-    Product ||--o{ Cart : in
-    Product ||--o{ Review : has
-    Product ||--|| Category : belongs_to
-    Product ||--o{ ProductImage : has
-    
-    %% Order Processing
-    Order ||--o{ OrderItem : contains
-    Order ||--o{ Transaction : has
-    Order ||--|| Customer : placed_by
-    Order ||--o| Employee : managed_by
-    Order ||--|| Payment : has
-    Order ||--|| Shipping : requires
-    
-    %% Shipping & Payment
-    Payment ||--|| Payment_Method : uses
-    Shipping ||--|| Shipping_Method : uses
-    Shipping ||--|| Shipping_Address : delivers_to
-    
-    %% Transaction Links
-    Transaction ||--|| Order : links
-    Transaction ||--|| Shipping : links
-    Transaction ||--|| Receipt : links
-    Transaction ||--|| Product : links
-    Transaction ||--|| Payment : links
+    CUSTOMER ||--o{ ORDER : places
+    CUSTOMER ||--o{ REVIEW : writes
+    CUSTOMER ||--o{ CART : has
+    EMPLOYEE ||--o{ ORDER : processes
+    PRODUCT ||--o{ REVIEW : receives
+    PRODUCT ||--o{ ORDERITEM : contains
+    PRODUCT ||--o{ PRODUCTIMAGE : has
+    PRODUCT }|--|| CATEGORY : belongs_to
+    ORDER ||--|{ ORDERITEM : includes
+    ORDER ||--|| PAYMENT : has
+    ORDER ||--|| TRANSACTION : generates
+    SHIPPING ||--|| TRANSACTION : has
+    PAYMENT_METHOD ||--|| PAYMENT : uses
+    SHIPPING_METHOD ||--|| SHIPPING : uses
+    EMPLOYEE }|--|| DEPARTMENT : belongs_to
+    EMPLOYEE }|--|| JOB_POSITION : has
+    EMPLOYEE }|--|| ISSUE_TRACKER : has
 ```
 
 ## 2. Logical Design
+Entity relationships with attributes (without data types).
 
-### Data Structure Diagram
 ```mermaid
-classDiagram
-    class Customer {
-        +Customer_ID INT(5) PK
-        +Username VARCHAR(50) UK
-        +First_Name VARCHAR(50)
-        +Last_Name VARCHAR(50)
-        +Email VARCHAR(50)
-        +Password VARCHAR(255)
-        +Phone_Number VARCHAR(20)
-        +Customer_Address INT(5) FK
-        +Gender VARCHAR(10)
-        +Birthday DATETIME
+erDiagram
+    CUSTOMER {
+        CustomerID PK
+        Username
+        FirstName
+        LastName
+        Email
+        Password
+        PhoneNumber
+        Gender
+        Birthday
     }
-    
-    class Employee {
-        +Employee_ID INT(5) PK
-        +First_Name VARCHAR(25)
-        +Last_Name VARCHAR(25)
-        +Phone_Number VARCHAR(20)
-        +Employee_Address INT(5) FK
-        +Gender VARCHAR(10)
-        +Birthday DATETIME
-        +Email VARCHAR(50)
-        +Password VARCHAR(255)
-        +Department INT(5) FK
-        +Salary DECIMAL(10,2)
-        +SSS_Number VARCHAR(20)
-        +Pag_IBIG VARCHAR(20)
-        +PhilHealth VARCHAR(20)
-        +TIN VARCHAR(20)
-        +Issue_Tracker_ID INT(5) FK
-        +Position_ID INT(5) FK
-        +Is_Admin BOOLEAN
-        +Is_Active BOOLEAN
+    EMPLOYEE {
+        EmployeeID PK
+        FirstName
+        LastName
+        PhoneNumber
+        Gender
+        Birthday
+        Email
+        Password
+        Salary
+        SSSNumber
+        PagIBIG
+        PhilHealth
+        TIN
+        IsAdmin
+        IsActive
     }
-    
-    class Address {
-        <<Interface>>
-        +Street VARCHAR(25)
-        +Barangay VARCHAR(25)
-        +Town_City VARCHAR(25)
-        +Province VARCHAR(25)
-        +Region VARCHAR(25)
-        +Postal_Code INT(4)
+    PRODUCT {
+        ProductID PK
+        ProductName
+        Description
+        Price
+        Stock
+        CategoryID FK
     }
-    
-    class Customer_Address {
-        +Customer_Address_ID INT(5) PK
-        +implements Address
+    ORDER {
+        OrderID PK
+        CustomerID FK
+        OrderDate
+        TotalAmount
+        EmployeeID FK
     }
-    
-    class Employee_Address {
-        +Employee_Address_ID INT(5) PK
-        +implements Address
+    TRANSACTION {
+        TransactionID PK
+        OrderID FK
+        ShippingID FK
+        ReceiptID FK
+        ProductID FK
+        PaymentID FK
+        Quantity
     }
-    
-    class Shipping_Address {
-        +Shipping_Address_ID INT(5) PK
-        +implements Address
+    SHIPPING {
+        ShippingID PK
+        ShippingStatus
+        AddressID FK
+        MethodID FK
     }
-    
-    class Product {
-        +Product_ID INT(5) PK
-        +Product_Name VARCHAR(100)
-        +Description VARCHAR(500)
-        +Price DECIMAL(10,2)
-        +Stock INT(5)
-        +Category_ID INT(5) FK
-    }
-    
-    class Category {
-        +Category_ID INT(5) PK
-        +Category_Name VARCHAR(100)
-    }
-    
-    class Order {
-        +Order_ID INT(5) PK
-        +Customer_ID INT(5) FK
-        +Order_Date DATETIME
-        +Total_Amount DECIMAL(10,2)
-        +Employee_ID INT(5) FK
-    }
-    
-    class OrderItem {
-        +OrderItem_ID INT PK
-        +Order_ID INT FK
-        +Product_ID INT FK
-        +Quantity INT
-        +Price DECIMAL(10,2)
-    }
-    
-    class Payment {
-        +Payment_ID INT PK
-        +Order_ID INT FK
-        +Payment_Method_ID INT FK
-        +Payment_Status VARCHAR(50)
-        +Payment_Date DATETIME
-        +Amount DECIMAL(10,2)
-    }
-    
-    class Payment_Method {
-        +Payment_Method_ID INT(5) PK
-        +Method_Name VARCHAR(100)
-        +Provider VARCHAR(100)
-        +Transaction_Fee DECIMAL(10,2)
-    }
-    
-    class Shipping {
-        +Shipping_ID INT(5) PK
-        +Shipping_Status VARCHAR(20)
-        +Shipping_Address_ID INT(5) FK
-        +Shipping_Method_ID INT(5) FK
-    }
-    
-    class Shipping_Method {
-        +Shipping_Method_ID INT PK
-        +Method_Name VARCHAR(50) UK
-        +Cost DECIMAL(10,2)
-        +Estimated_Delivery_Time VARCHAR(50)
-    }
-    
-    class Transaction {
-        +Transaction_ID INT(5) PK
-        +Order_ID INT(5) FK
-        +Shipping_ID INT(5) FK
-        +Receipt_ID INT(5) FK
-        +Product_ID INT(5) FK
-        +Payment_ID INT(5) FK
-        +Quantity INT(5)
-    }
-    
-    class Settings {
-        +id INT PK
-        +store_name VARCHAR(100)
-        +store_email VARCHAR(100)
-        +store_phone VARCHAR(20)
-        +store_address TEXT
-        +tax_rate DECIMAL(5,2)
-        +shipping_fee DECIMAL(10,2)
-        +free_shipping_threshold DECIMAL(10,2)
-        +maintenance_mode BOOLEAN
-        +created_at TIMESTAMP
-        +updated_at TIMESTAMP
-    }
-    
-    class Review {
-        +Review_ID INT(5) PK
-        +Product_ID INT(5) FK
-        +Customer_ID INT(5) FK
-        +Rating INT(1)
-        +Review_Text VARCHAR(500)
-        +Review_Date DATETIME
-    }
-    
-    class Receipt {
-        +Receipt_ID INT(5) PK
-        +Tax_Amount DECIMAL(10,2)
-        +Total_Amount DECIMAL(10,2)
-        +Type VARCHAR(20)
-    }
-    
-    Customer "1" -- "0..*" Order
-    Employee "1" -- "0..*" Order
-    Product "1" -- "0..*" OrderItem
-    Order "1" -- "1..*" OrderItem
-    Order "1" -- "1" Payment
-    Order "1" -- "1" Shipping
-    Customer_Address --|> Address
-    Employee_Address --|> Address
-    Shipping_Address --|> Address
 ```
 
 ## 3. Physical Design
+Complete database schema with data types and constraints.
 
-[Previous SQL CREATE TABLE statements and other sections remain the same...]
+```mermaid
+erDiagram
+    CUSTOMER {
+        INT(5) Customer_ID PK
+        VARCHAR(50) Username UK
+        VARCHAR(50) First_Name
+        VARCHAR(50) Last_Name
+        VARCHAR(50) Email
+        VARCHAR(255) Password
+        VARCHAR(20) Phone_Number
+        INT(5) Customer_Address FK
+        VARCHAR(10) Gender
+        DATETIME Birthday
+    }
+    PRODUCT {
+        INT(5) Product_ID PK
+        VARCHAR(100) Product_Name
+        VARCHAR(500) Description
+        DECIMAL(10,2) Price
+        INT(5) Stock
+        INT(5) Category_ID FK
+    }
+    ORDER {
+        INT(5) Order_ID PK
+        INT(5) Customer_ID FK
+        DATETIME Order_Date
+        DECIMAL(10,2) Total_Amount
+        INT(5) Employee_ID FK
+    }
+    PAYMENT {
+        INT Payment_ID PK
+        INT Order_ID FK
+        INT Payment_Method_ID FK
+        VARCHAR(50) Payment_Status
+        DATETIME Payment_Date
+        DECIMAL(10,2) Amount
+    }
+    TRANSACTION {
+        INT(5) Transaction_ID PK
+        INT(5) Order_ID FK
+        INT(5) Shipping_ID FK
+        INT(5) Receipt_ID FK
+        INT(5) Product_ID FK
+        INT(5) Payment_ID FK
+        INT(5) Quantity
+    }
+```
+
+## Key Features
+
+1. Full employee management system with HR data
+2. Complete order processing system
+3. Multi-address support (Employee, Customer, Shipping)
+4. Product management with categories and images
+5. Review and rating system
+6. Multiple payment and shipping methods
+7. Cart system for customers
+8. Issue tracking for employees
+9. Store settings management
+10. Comprehensive transaction tracking
+
+## Design Principles
+
+- Referential integrity through foreign keys
+- Data normalization to prevent redundancy
+- Proper data type selection for efficiency
+- Appropriate field lengths for storage optimization
+- Security features (password hashing)
+- Audit capabilities (timestamps)
 ``` 
