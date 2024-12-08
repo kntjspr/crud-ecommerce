@@ -7,28 +7,28 @@ High-level view of main entities and their relationships.
 
 ```mermaid
 erDiagram
-    CUSTOMER ||--o{ ORDER : places
-    CUSTOMER ||--o{ REVIEW : writes
-    CUSTOMER ||--o{ CART : has
-    CUSTOMER ||--|| CUSTOMER_ADDRESS : has
-    EMPLOYEE ||--o{ ORDER : processes
-    EMPLOYEE ||--|| EMPLOYEE_ADDRESS : has
-    EMPLOYEE }|--|| DEPARTMENT : belongs_to
-    EMPLOYEE }|--|| JOB_POSITION : has
-    EMPLOYEE }|--|| ISSUE_TRACKER : manages
-    PRODUCT ||--o{ REVIEW : receives
-    PRODUCT ||--o{ ORDERITEM : contains
-    PRODUCT ||--o{ PRODUCTIMAGE : has
-    PRODUCT ||--o{ CART : in
-    PRODUCT }|--|| CATEGORY : belongs_to
-    ORDER ||--|{ ORDERITEM : includes
-    ORDER ||--|| PAYMENT : has
-    ORDER ||--|| TRANSACTION : generates
-    SHIPPING ||--|| TRANSACTION : has
-    SHIPPING ||--|| SHIPPING_ADDRESS : delivers_to
-    SHIPPING }|--|| SHIPPING_METHOD : uses
-    PAYMENT_METHOD ||--|| PAYMENT : uses
-    TRANSACTION ||--|| RECEIPT : generates
+    CUSTOMER ||--o{ ORDER : "places"
+    CUSTOMER ||--o{ REVIEW : "writes"
+    CUSTOMER ||--o{ CART : "has"
+    CUSTOMER ||--|| CUSTOMER_ADDRESS : "has"
+    EMPLOYEE ||--o{ ORDER : "processes"
+    EMPLOYEE ||--|| EMPLOYEE_ADDRESS : "has"
+    EMPLOYEE }|--|| DEPARTMENT : "belongs_to"
+    EMPLOYEE }|--|| JOB_POSITION : "has"
+    EMPLOYEE }|--|| ISSUE_TRACKER : "manages"
+    PRODUCT ||--o{ REVIEW : "receives"
+    PRODUCT ||--o{ ORDERITEM : "contains"
+    PRODUCT ||--o{ PRODUCTIMAGE : "has"
+    PRODUCT ||--o{ CART : "in"
+    PRODUCT }|--|| CATEGORY : "belongs_to"
+    ORDER ||--|{ ORDERITEM : "includes"
+    ORDER ||--|| PAYMENT : "has"
+    ORDER ||--|| TRANSACTION : "generates"
+    SHIPPING ||--|| TRANSACTION : "has"
+    SHIPPING ||--|| SHIPPING_ADDRESS : "delivers_to"
+    SHIPPING }|--|| SHIPPING_METHOD : "uses"
+    PAYMENT_METHOD ||--|| PAYMENT : "uses"
+    TRANSACTION ||--|| RECEIPT : "generates"
 ```
 
 ## 2. Logical Design
@@ -37,67 +37,67 @@ Entity relationships with attributes.
 ```mermaid
 erDiagram
     CUSTOMER {
-        CustomerID PK
-        Username UK
-        FirstName
-        LastName
-        Email
-        Password
-        PhoneNumber
-        CustomerAddress FK
-        Gender
-        Birthday
+        int CustomerID PK
+        string Username UK
+        string FirstName
+        string LastName
+        string Email
+        string Password
+        string PhoneNumber
+        int CustomerAddress FK
+        string Gender
+        datetime Birthday
     }
     EMPLOYEE {
-        EmployeeID PK
-        FirstName
-        LastName
-        PhoneNumber
-        EmployeeAddress FK
-        Gender
-        Birthday
-        Email
-        Password
-        Department FK
-        Salary
-        SSSNumber
-        PagIBIG
-        PhilHealth
-        TIN
-        IssueTrackerID FK
-        PositionID FK
-        IsAdmin
-        IsActive
+        int EmployeeID PK
+        string FirstName
+        string LastName
+        string PhoneNumber
+        int EmployeeAddress FK
+        string Gender
+        datetime Birthday
+        string Email
+        string Password
+        int Department FK
+        decimal Salary
+        string SSSNumber
+        string PagIBIG
+        string PhilHealth
+        string TIN
+        int IssueTrackerID FK
+        int PositionID FK
+        boolean IsAdmin
+        boolean IsActive
     }
     PRODUCT {
-        ProductID PK
-        ProductName
-        Description
-        Price
-        Stock
-        CategoryID FK
+        int ProductID PK
+        string ProductName
+        string Description
+        decimal Price
+        int Stock
+        int CategoryID FK
     }
     ORDER {
-        OrderID PK
-        CustomerID FK
-        OrderDate
-        TotalAmount
-        EmployeeID FK
+        int OrderID PK
+        int CustomerID FK
+        datetime OrderDate
+        decimal TotalAmount
+        int EmployeeID FK
     }
     TRANSACTION {
-        TransactionID PK
-        OrderID FK
-        ShippingID FK
-        ReceiptID FK
-        ProductID FK
-        PaymentID FK
-        Quantity
+        int TransactionID PK
+        int OrderID FK
+        int ShippingID FK
+        int ReceiptID FK
+        int ProductID FK
+        int PaymentID FK
+        int Quantity
     }
     SHIPPING {
-        ShippingID PK
-        ShippingStatus
-        ShippingAddressID FK
-        ShippingMethodID FK
+        int ShippingID PK
+        string ShippingStatus
+        int ShippingAddressID FK
+        int ShippingMethodID FK
     }
 ```
 
@@ -107,72 +107,72 @@ Complete database schema with data types and constraints.
 ```mermaid
 erDiagram
     CUSTOMER {
-        INT5 Customer_ID PK
-        VARCHAR50 Username UK
-        VARCHAR50 First_Name "NOT NULL"
-        VARCHAR50 Last_Name "NOT NULL"
-        VARCHAR50 Email "NOT NULL"
-        VARCHAR255 Password "NOT NULL"
-        VARCHAR20 Phone_Number
-        INT5 Customer_Address FK
-        VARCHAR10 Gender
-        DATETIME Birthday
+        int Customer_ID "PK"
+        varchar50 Username "UK"
+        varchar50 First_Name "NOT NULL"
+        varchar50 Last_Name "NOT NULL"
+        varchar50 Email "NOT NULL"
+        varchar255 Password "NOT NULL"
+        varchar20 Phone_Number
+        int Customer_Address "FK"
+        varchar10 Gender
+        datetime Birthday
     }
     EMPLOYEE {
-        INT5 Employee_ID PK
-        VARCHAR25 First_Name "NOT NULL"
-        VARCHAR25 Last_Name "NOT NULL"
-        VARCHAR20 Phone_Number
-        INT5 Employee_Address FK
-        VARCHAR10 Gender
-        DATETIME Birthday
-        VARCHAR50 Email
-        VARCHAR255 Password "NOT NULL"
-        INT5 Department FK
-        DECIMAL10_2 Salary
-        VARCHAR20 SSS_Number
-        VARCHAR20 Pag_IBIG
-        VARCHAR20 PhilHealth
-        VARCHAR20 TIN
-        INT5 Issue_Tracker_ID FK
-        INT5 Position_ID FK
-        BOOLEAN Is_Admin "DEFAULT FALSE"
-        BOOLEAN Is_Active "DEFAULT TRUE"
+        int Employee_ID "PK"
+        varchar25 First_Name "NOT NULL"
+        varchar25 Last_Name "NOT NULL"
+        varchar20 Phone_Number
+        int Employee_Address "FK"
+        varchar10 Gender
+        datetime Birthday
+        varchar50 Email
+        varchar255 Password "NOT NULL"
+        int Department "FK"
+        decimal10_2 Salary
+        varchar20 SSS_Number
+        varchar20 Pag_IBIG
+        varchar20 PhilHealth
+        varchar20 TIN
+        int Issue_Tracker_ID "FK"
+        int Position_ID "FK"
+        boolean Is_Admin "DEFAULT FALSE"
+        boolean Is_Active "DEFAULT TRUE"
     }
     PRODUCT {
-        INT5 Product_ID PK
-        VARCHAR100 Product_Name "NOT NULL"
-        VARCHAR500 Description
-        DECIMAL10_2 Price "NOT NULL"
-        INT5 Stock "NOT NULL"
-        INT5 Category_ID FK
+        int Product_ID "PK"
+        varchar100 Product_Name "NOT NULL"
+        varchar500 Description
+        decimal10_2 Price "NOT NULL"
+        int Stock "NOT NULL"
+        int Category_ID "FK"
     }
     CART {
-        INT Cart_ID PK
-        INT Customer_ID FK "NOT NULL"
-        INT Product_ID FK "NOT NULL"
-        INT Quantity "DEFAULT 1"
-        TIMESTAMP Added_At "DEFAULT CURRENT_TIMESTAMP"
+        int Cart_ID "PK"
+        int Customer_ID "FK NOT NULL"
+        int Product_ID "FK NOT NULL"
+        int Quantity "DEFAULT 1"
+        timestamp Added_At "DEFAULT CURRENT_TIMESTAMP"
     }
     ORDERITEM {
-        INT OrderItem_ID PK
-        INT Order_ID FK "NOT NULL"
-        INT Product_ID FK "NOT NULL"
-        INT Quantity "NOT NULL"
-        DECIMAL10_2 Price "NOT NULL"
+        int OrderItem_ID "PK"
+        int Order_ID "FK NOT NULL"
+        int Product_ID "FK NOT NULL"
+        int Quantity "NOT NULL"
+        decimal10_2 Price "NOT NULL"
     }
     SETTINGS {
-        INT id PK
-        VARCHAR100 store_name "DEFAULT 'Shoepee'"
-        VARCHAR100 store_email
-        VARCHAR20 store_phone
-        TEXT store_address
-        DECIMAL5_2 tax_rate "DEFAULT 0.00"
-        DECIMAL10_2 shipping_fee "DEFAULT 0.00"
-        DECIMAL10_2 free_shipping_threshold "DEFAULT 0.00"
-        BOOLEAN maintenance_mode "DEFAULT FALSE"
-        TIMESTAMP created_at "DEFAULT CURRENT_TIMESTAMP"
-        TIMESTAMP updated_at "DEFAULT CURRENT_TIMESTAMP"
+        int id "PK"
+        varchar100 store_name "DEFAULT 'Shoepee'"
+        varchar100 store_email
+        varchar20 store_phone
+        text store_address
+        decimal5_2 tax_rate "DEFAULT 0.00"
+        decimal10_2 shipping_fee "DEFAULT 0.00"
+        decimal10_2 free_shipping_threshold "DEFAULT 0.00"
+        boolean maintenance_mode "DEFAULT FALSE"
+        timestamp created_at "DEFAULT CURRENT_TIMESTAMP"
+        timestamp updated_at "DEFAULT CURRENT_TIMESTAMP"
     }
 ```
 
