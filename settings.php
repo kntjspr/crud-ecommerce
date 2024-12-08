@@ -206,6 +206,7 @@ $db_info = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php include 'favicon.php'; ?>
     <title>System Settings - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
@@ -310,6 +311,8 @@ $db_info = [
                         <input type="hidden" name="action" value="maintenance_mode">
                         <button type="submit" class="btn btn-light maintenance-badge">
                             <i class="bi bi-gear"></i>
+
+                            <!-- Maintenance Mode Toggle (doesn't do anything yet)-->
                             <?php echo $settings['maintenance_mode'] ? 'Disable Maintenance Mode' : 'Enable Maintenance Mode'; ?>
                         </button>
                     </form>
@@ -505,7 +508,8 @@ $db_info = [
                 </div>
             </div>
 
-            <!-- About Section -->
+            <!-- About Section 
+             hehehehehehehe -->
             <div class="row">
                 <div class="col-md-12">
                     <div class="content-card">
