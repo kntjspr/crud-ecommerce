@@ -51,6 +51,7 @@ Entity relationships with attributes and constraints.
 
 ```mermaid
 erDiagram
+    %% Independent Tables
     JOB_POSITION {
         Position_ID INT PK "AUTO_INCREMENT"
         Title VARCHAR50 "NOT NULL"
@@ -69,6 +70,7 @@ erDiagram
         Status VARCHAR20
     }
     
+    %% Address Tables
     EMPLOYEE_ADDRESS {
         Employee_Address_ID INT PK "AUTO_INCREMENT"
         Street VARCHAR25 "NOT NULL"
@@ -89,6 +91,7 @@ erDiagram
         Postal_Code INT4 "NOT NULL"
     }
     
+    %% Core Tables
     EMPLOYEE {
         Employee_ID INT PK "AUTO_INCREMENT"
         First_Name VARCHAR25 "NOT NULL"
@@ -123,6 +126,19 @@ erDiagram
         Gender VARCHAR10
         Birthday DATETIME
     }
+```
+
+## 3. Physical Design
+Complete database schema with relationships and constraints.
+
+```mermaid
+erDiagram
+    %% Core Product Tables
+    CATEGORY ||--o{ PRODUCT : has
+    PRODUCT ||--o{ PRODUCTIMAGE : has
+    PRODUCT ||--o{ ORDERITEM : contains
+    PRODUCT ||--o{ CART : contains
+    PRODUCT ||--o{ REVIEW : has
     
     CATEGORY {
         Category_ID INT PK "AUTO_INCREMENT"
@@ -145,6 +161,13 @@ erDiagram
         Created_At TIMESTAMP "DEFAULT CURRENT_TIMESTAMP"
     }
     
+    %% Order Processing Tables
+    CUSTOMER ||--o{ ORDER : places
+    EMPLOYEE ||--o{ ORDER : processes
+    ORDER ||--|{ ORDERITEM : contains
+    ORDER ||--|| PAYMENT : has
+    ORDER ||--|| TRANSACTION : has
+    
     ORDER {
         Order_ID INT5 PK "AUTO_INCREMENT"
         Customer_ID INT5 FK "NOT NULL"
@@ -153,12 +176,38 @@ erDiagram
         Employee_ID INT5 FK
     }
     
+    ORDERITEM {
+        OrderItem_ID INT PK "AUTO_INCREMENT"
+        Order_ID INT FK "NOT NULL"
+        Product_ID INT FK "NOT NULL"
+        Quantity INT "NOT NULL"
+        Price DECIMAL10_2 "NOT NULL"
+    }
+    
+    %% Payment Processing Tables
+    PAYMENT_METHOD ||--o{ PAYMENT : used_by
+    PAYMENT ||--|| TRANSACTION : has
+    
     PAYMENT_METHOD {
         Payment_Method_ID INT5 PK "AUTO_INCREMENT"
         Method_Name VARCHAR100 "NOT NULL"
         Provider VARCHAR100 "NOT NULL"
         Transaction_Fee DECIMAL10_2
     }
+    
+    PAYMENT {
+        Payment_ID INT PK "AUTO_INCREMENT"
+        Order_ID INT FK
+        Payment_Method_ID INT FK
+        Payment_Status VARCHAR50 "DEFAULT 'Pending'"
+        Payment_Date DATETIME
+        Amount DECIMAL10_2 "NOT NULL"
+    }
+    
+    %% Shipping Tables
+    SHIPPING_METHOD ||--o{ SHIPPING : used_by
+    SHIPPING_ADDRESS ||--o{ SHIPPING : delivers_to
+    SHIPPING ||--|| TRANSACTION : has
     
     SHIPPING_METHOD {
         Shipping_Method_ID INT PK "AUTO_INCREMENT"
@@ -184,30 +233,8 @@ erDiagram
         Shipping_Method_ID INT5 FK
     }
     
-    PAYMENT {
-        Payment_ID INT PK "AUTO_INCREMENT"
-        Order_ID INT FK
-        Payment_Method_ID INT FK
-        Payment_Status VARCHAR50 "DEFAULT 'Pending'"
-        Payment_Date DATETIME
-        Amount DECIMAL10_2 "NOT NULL"
-    }
-    
-    RECEIPT {
-        Receipt_ID INT5 PK "AUTO_INCREMENT"
-        Tax_Amount DECIMAL10_2
-        Total_Amount DECIMAL10_2
-        Type VARCHAR20
-    }
-    
-    REVIEW {
-        Review_ID INT5 PK "AUTO_INCREMENT"
-        Product_ID INT5 FK
-        Customer_ID INT5 FK
-        Rating INT1 "NOT NULL CHECK(1-5)"
-        Review_Text VARCHAR500
-        Review_Date DATETIME "NOT NULL"
-    }
+    %% Transaction and Receipt Tables
+    TRANSACTION ||--|| RECEIPT : generates
     
     TRANSACTION {
         Transaction_ID INT5 PK "AUTO_INCREMENT"
@@ -219,6 +246,17 @@ erDiagram
         Quantity INT5 "DEFAULT 1"
     }
     
+    RECEIPT {
+        Receipt_ID INT5 PK "AUTO_INCREMENT"
+        Tax_Amount DECIMAL10_2
+        Total_Amount DECIMAL10_2
+        Type VARCHAR20
+    }
+    
+    %% Customer Interaction Tables
+    CUSTOMER ||--o{ CART : has
+    CUSTOMER ||--o{ REVIEW : writes
+    
     CART {
         Cart_ID INT PK "AUTO_INCREMENT"
         Customer_ID INT FK "NOT NULL"
@@ -228,14 +266,16 @@ erDiagram
         unique_customer_product_idx VARCHAR "UNIQUE(Customer_ID,Product_ID)"
     }
     
-    ORDERITEM {
-        OrderItem_ID INT PK "AUTO_INCREMENT"
-        Order_ID INT FK "NOT NULL"
-        Product_ID INT FK "NOT NULL"
-        Quantity INT "NOT NULL"
-        Price DECIMAL10_2 "NOT NULL"
+    REVIEW {
+        Review_ID INT5 PK "AUTO_INCREMENT"
+        Product_ID INT5 FK
+        Customer_ID INT5 FK
+        Rating INT1 "NOT NULL CHECK(1-5)"
+        Review_Text VARCHAR500
+        Review_Date DATETIME "NOT NULL"
     }
     
+    %% System Configuration
     SETTINGS {
         id INT PK "AUTO_INCREMENT"
         store_name VARCHAR100 "NOT NULL DEFAULT 'Shoepee'"
