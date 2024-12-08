@@ -4,18 +4,17 @@ $username = 'root';
 $password = '';
 
 try {
+    // Initial connection to MySQL server
+    $pdo = new PDO("mysql:host=$host", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     // Create fresh database
-    $pdo->exec("CREATE DATABASE shoepee_db");
-    echo "New database created successfully<br>";
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS shoepee_db");
+    echo "Database created/verified successfully<br>";
     
     // Switch to the new database
     $pdo->exec("USE shoepee_db");
     
-    // Connect to the database
-    $pdo = new PDO("mysql:host=$host;dbname=shoepee_db", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     // Create tables in correct order
     $queries = [
         // Independent tables first
@@ -139,8 +138,8 @@ try {
         )",
 
         "CREATE TABLE IF NOT EXISTS Shipping_Method (
-            Shipping_Method_ID INT(5) PRIMARY KEY AUTO_INCREMENT,
-            Method_Name VARCHAR(100) NOT NULL,
+            Shipping_Method_ID INT PRIMARY KEY AUTO_INCREMENT,
+            Method_Name VARCHAR(50) UNIQUE,
             Cost DECIMAL(10,2),
             Estimated_Delivery_Time VARCHAR(50)
         )",
@@ -165,11 +164,12 @@ try {
         )",
 
         "CREATE TABLE IF NOT EXISTS Payment (
-            Payment_ID INT(5) PRIMARY KEY AUTO_INCREMENT,
-            Order_ID INT(5),
+            Payment_ID INT PRIMARY KEY AUTO_INCREMENT,
+            Order_ID INT,
+            Payment_Method_ID INT,
+            Payment_Status VARCHAR(50) DEFAULT 'Pending',
             Payment_Date DATETIME,
-            Payment_Status VARCHAR(20),
-            Payment_Method_ID INT(5),
+            Amount DECIMAL(10,2) NOT NULL,
             FOREIGN KEY (Order_ID) REFERENCES `Order`(Order_ID),
             FOREIGN KEY (Payment_Method_ID) REFERENCES Payment_Method(Payment_Method_ID)
         )",
@@ -185,7 +185,7 @@ try {
             Review_ID INT(5) PRIMARY KEY AUTO_INCREMENT,
             Product_ID INT(5),
             Customer_ID INT(5),
-            Rating DECIMAL(10,2) NOT NULL,
+            Rating INT(1) NOT NULL CHECK (Rating >= 1 AND Rating <= 5),
             Review_Text VARCHAR(500),
             Review_Date DATETIME NOT NULL,
             FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID),
@@ -205,97 +205,110 @@ try {
             FOREIGN KEY (Receipt_ID) REFERENCES Receipt(Receipt_ID),
             FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID),
             FOREIGN KEY (Payment_ID) REFERENCES Payment(Payment_ID)
+        )",
+
+        "CREATE TABLE IF NOT EXISTS Settings (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            store_name VARCHAR(100) NOT NULL DEFAULT 'Shoepee',
+            store_email VARCHAR(100),
+            store_phone VARCHAR(20),
+            store_address TEXT,
+            tax_rate DECIMAL(5,2) DEFAULT 0.00,
+            shipping_fee DECIMAL(10,2) DEFAULT 0.00,
+            free_shipping_threshold DECIMAL(10,2) DEFAULT 0.00,
+            maintenance_mode BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )",
+
+        "CREATE TABLE IF NOT EXISTS Cart (
+            Cart_ID INT PRIMARY KEY AUTO_INCREMENT,
+            Customer_ID INT NOT NULL,
+            Product_ID INT NOT NULL,
+            Quantity INT NOT NULL DEFAULT 1,
+            Added_At TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (Customer_ID) REFERENCES Customer(Customer_ID),
+            FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID),
+            UNIQUE KEY unique_customer_product (Customer_ID, Product_ID)
+        )",
+
+        "CREATE TABLE IF NOT EXISTS OrderItem (
+            OrderItem_ID INT PRIMARY KEY AUTO_INCREMENT,
+            Order_ID INT NOT NULL,
+            Product_ID INT NOT NULL,
+            Quantity INT NOT NULL,
+            Price DECIMAL(10,2) NOT NULL,
+            FOREIGN KEY (Order_ID) REFERENCES `Order`(Order_ID),
+            FOREIGN KEY (Product_ID) REFERENCES Product(Product_ID)
         )"
     ];
 
     // Execute table creation queries
     foreach ($queries as $query) {
         $pdo->exec($query);
-        echo "Table created successfully<br>";
+        echo "Table created/verified successfully<br>";
     }
 
-    // Insert initial data
+    // Insert initial data if not exists
     // Insert default department
-    $stmt = $pdo->prepare("INSERT INTO Department (Department_Name, Description) VALUES ('Executive', 'Executive Department')");
+    $stmt = $pdo->prepare("INSERT INTO Department (Department_Name, Description) 
+                          SELECT 'Executive', 'Executive Department' 
+                          WHERE NOT EXISTS (SELECT 1 FROM Department WHERE Department_Name = 'Executive')");
     $stmt->execute();
-    echo "Default department created<br>";
 
     // Insert default position
-    $stmt = $pdo->prepare("INSERT INTO Job_Position (Title, Description) VALUES ('Administrator', 'System Administrator')");
+    $stmt = $pdo->prepare("INSERT INTO Job_Position (Title, Description) 
+                          SELECT 'Administrator', 'System Administrator' 
+                          WHERE NOT EXISTS (SELECT 1 FROM Job_Position WHERE Title = 'Administrator')");
     $stmt->execute();
-    echo "Default position created<br>";
 
-    // Insert sample categories
+    // Insert sample categories if they don't exist
     $categories = [
-        ['Category_Name' => 'Running Shoes'],
-        ['Category_Name' => 'Casual Shoes'],
-        ['Category_Name' => 'Formal Shoes'],
-        ['Category_Name' => 'Sports Shoes'],
-        ['Category_Name' => 'Sandals']
+        'Running Shoes',
+        'Casual Shoes',
+        'Formal Shoes',
+        'Sports Shoes',
+        'Sandals'
     ];
 
-    $stmt = $pdo->prepare("INSERT INTO Category (Category_Name) VALUES (:Category_Name)");
+    $stmt = $pdo->prepare("INSERT INTO Category (Category_Name) 
+                          SELECT ? WHERE NOT EXISTS (SELECT 1 FROM Category WHERE Category_Name = ?)");
     foreach ($categories as $category) {
-        $stmt->execute($category);
+        $stmt->execute([$category, $category]);
     }
-    echo "Categories added successfully<br>";
 
-    // Insert sample shipping methods
-    $shipping_methods = [
-        [
-            'Method_Name' => 'Standard Shipping',
-            'Cost' => 5.99,
-            'Estimated_Delivery_Time' => '5-7 business days'
-        ],
-        [
-            'Method_Name' => 'Express Shipping',
-            'Cost' => 15.99,
-            'Estimated_Delivery_Time' => '2-3 business days'
-        ],
-        [
-            'Method_Name' => 'Next Day Delivery',
-            'Cost' => 25.99,
-            'Estimated_Delivery_Time' => '1 business day'
-        ]
-    ];
+    // Disable foreign key checks temporarily
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
 
-    $stmt = $pdo->prepare("INSERT INTO Shipping_Method (Method_Name, Cost, Estimated_Delivery_Time) VALUES (:Method_Name, :Cost, :Estimated_Delivery_Time)");
-    foreach ($shipping_methods as $method) {
-        $stmt->execute($method);
-    }
-    echo "Shipping methods added successfully<br>";
+    // Clear existing shipping methods first
+    $pdo->exec("TRUNCATE TABLE Shipping_Method");
 
-    // Insert sample payment methods
-    $payment_methods = [
-        [
-            'Method_Name' => 'Credit Card',
-            'Provider' => 'Visa/Mastercard',
-            'Transaction_Fee' => 1.00
-        ],
-        [
-            'Method_Name' => 'PayPal',
-            'Provider' => 'PayPal',
-            'Transaction_Fee' => 1.99
-        ],
-        [
-            'Method_Name' => 'Cash on Delivery',
-            'Provider' => 'Internal',
-            'Transaction_Fee' => 2.99
-        ]
-    ];
+    // Add default shipping methods
+    $pdo->exec("
+        INSERT INTO Shipping_Method (Method_Name, Cost, Estimated_Delivery_Time) VALUES
+        ('Standard Delivery', 100.00, '3-5 business days'),
+        ('Express Delivery', 200.00, '1-2 business days'),
+        ('Same Day Delivery', 350.00, 'Within 24 hours')
+    ");
 
-    $stmt = $pdo->prepare("INSERT INTO Payment_Method (Method_Name, Provider, Transaction_Fee) VALUES (:Method_Name, :Provider, :Transaction_Fee)");
-    foreach ($payment_methods as $method) {
-        $stmt->execute($method);
-    }
-    echo "Payment methods added successfully<br>";
+    // Re-enable foreign key checks
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
 
-    // Create default admin address
+    // Create default admin address if not exists
     $stmt = $pdo->prepare("INSERT INTO Employee_Address (Street, Barangay, Town_City, Province, Region, Postal_Code) 
-                          VALUES ('Default Street', 'Default Barangay', 'Default City', 'Default Province', 'Default Region', 1234)");
+                          SELECT 'Default Street', 'Default Barangay', 'Default City', 'Default Province', 'Default Region', 1234
+                          WHERE NOT EXISTS (
+                              SELECT 1 FROM Employee_Address 
+                              WHERE Street = 'Default Street' 
+                              AND Barangay = 'Default Barangay'
+                          )");
     $stmt->execute();
-    $address_id = $pdo->lastInsertId();
-    echo "Admin address created<br>";
+    
+    // Get the address ID (either newly inserted or existing)
+    $stmt = $pdo->prepare("SELECT Employee_Address_ID FROM Employee_Address 
+                          WHERE Street = 'Default Street' AND Barangay = 'Default Barangay'");
+    $stmt->execute();
+    $address_id = $stmt->fetchColumn();
 
     // Get the first department and position IDs
     $dept_stmt = $pdo->query("SELECT Department_ID FROM Department LIMIT 1");
@@ -304,7 +317,7 @@ try {
     $pos_stmt = $pdo->query("SELECT Position_ID FROM Job_Position LIMIT 1");
     $position_id = $pos_stmt->fetchColumn();
 
-    // Create default admin account
+    // Create default admin account if not exists
     $admin_password = password_hash('admin123', PASSWORD_DEFAULT);
     $stmt = $pdo->prepare("INSERT INTO Employee (
         First_Name, 
@@ -316,7 +329,7 @@ try {
         Position_ID,
         Is_Admin,
         Is_Active
-    ) VALUES (
+    ) SELECT 
         'Admin',
         'User',
         'admin@shoepee.com',
@@ -326,14 +339,34 @@ try {
         ?,
         TRUE,
         TRUE
+    WHERE NOT EXISTS (
+        SELECT 1 FROM Employee WHERE Email = 'admin@shoepee.com'
     )");
     $stmt->execute([$admin_password, $address_id, $department_id, $position_id]);
-    echo "Admin account created successfully<br>";
-    echo "Admin credentials - Email: admin@shoepee.com, Password: admin123<br>";
 
-    echo "Database initialization completed successfully!";
+    // Insert default settings if not exists
+    $pdo->exec("
+        INSERT INTO Settings (id, store_name, store_email, store_phone, store_address)
+        SELECT 1, 'Shoepee', 'contact@shoepee.com', '+1234567890', '123 Shoe Street, Fashion District'
+        WHERE NOT EXISTS (SELECT 1 FROM Settings WHERE id = 1)
+    ");
 
-} catch (PDOException $e) {
-    die("Database initialization failed: " . $e->getMessage());
+    // After creating Payment_Method table, add default methods
+    $pdo->exec("
+        INSERT INTO Payment_Method (Method_Name, Provider, Transaction_Fee) VALUES
+        ('Credit Card', 'Visa/Mastercard', 5.00),
+        ('E-Wallet', 'GCash', 0.00),
+        ('E-Wallet', 'Maya', 0.00),
+        ('Cash on Delivery', 'Direct', 50.00)
+        ON DUPLICATE KEY UPDATE Method_Name = VALUES(Method_Name)
+    ");
+
+    echo "<div class='alert alert-success mt-3'>Database initialization completed successfully!</div>";
+    echo "<div class='alert alert-info mt-3'>Default Admin Credentials:<br>";
+    echo "Email: admin@shoepee.com<br>";
+    echo "Password: admin123</div>";
+
+} catch(PDOException $e) {
+    die("<div class='alert alert-danger mt-3'>Database initialization failed: " . $e->getMessage() . "</div>");
 }
 ?> 

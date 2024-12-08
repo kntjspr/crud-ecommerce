@@ -3,74 +3,53 @@ session_start();
 require_once 'config/database.php';
 
 // Check if user is logged in as customer
-if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'customer') {
-    $_SESSION['redirect_after_login'] = 'checkout.php';
+if (!isset($_SESSION['customer_id'])) {
     header("Location: login.php");
     exit();
 }
 
-// Check if cart is empty
-if (!isset($_SESSION['cart']) || empty($_SESSION['cart'])) {
-    header("Location: cart.php");
-    exit();
-}
-
-// Create order if it doesn't exist
-if (!isset($_SESSION['order_id'])) {
-    try {
-        $pdo->beginTransaction();
-        
-        // Create new order
-        $stmt = $pdo->prepare("INSERT INTO `Order` (Customer_ID, Order_Date, Total_Amount) VALUES (?, NOW(), 0)");
-        $stmt->execute([$_SESSION['customer_id']]);
-        $_SESSION['order_id'] = $pdo->lastInsertId();
-        
-        // Add items to transaction
-        $stmt = $pdo->prepare("INSERT INTO Transaction (Order_ID, Product_ID, Quantity) VALUES (?, ?, ?)");
-        foreach ($_SESSION['cart'] as $product_id => $quantity) {
-            $stmt->execute([$_SESSION['order_id'], $product_id, $quantity]);
-        }
-        
-        $pdo->commit();
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        $_SESSION['error'] = "Error creating order: " . $e->getMessage();
-        header("Location: cart.php");
-        exit();
-    }
-}
-
-// Get order details
+// Get cart items
 $stmt = $pdo->prepare("
-    SELECT t.*, p.Product_Name, p.Price 
-    FROM Transaction t 
-    JOIN Product p ON t.Product_ID = p.Product_ID 
-    WHERE t.Order_ID = ?
+    SELECT c.*, p.Product_Name, p.Price, p.Stock,
+           (SELECT Image_Path FROM ProductImage pi WHERE pi.Product_ID = p.Product_ID LIMIT 1) as Image_Path
+    FROM Cart c
+    JOIN Product p ON c.Product_ID = p.Product_ID
+    WHERE c.Customer_ID = ?
 ");
-$stmt->execute([$_SESSION['order_id']]);
-$order_items = $stmt->fetchAll();
+$stmt->execute([$_SESSION['customer_id']]);
+$cart_items = $stmt->fetchAll();
 
-// Calculate total
-$total = 0;
-foreach ($order_items as $item) {
-    $total += $item['Price'] * $item['Quantity'];
+// Calculate totals
+$subtotal = 0;
+foreach ($cart_items as $item) {
+    $subtotal += $item['Price'] * $item['Quantity'];
 }
+
+// Get settings for shipping and tax
+$stmt = $pdo->query("SELECT shipping_fee, free_shipping_threshold, tax_rate FROM Settings WHERE id = 1");
+$settings = $stmt->fetch();
 
 // Get shipping methods
-$shipping_methods = $pdo->query("SELECT * FROM Shipping_Method")->fetchAll();
+$shipping_methods = $pdo->query("SELECT * FROM Shipping_Method ORDER BY Cost")->fetchAll();
 
 // Get payment methods
-$payment_methods = $pdo->query("SELECT * FROM Payment_Method")->fetchAll();
+$payment_methods = $pdo->query("SELECT * FROM Payment_Method ORDER BY Method_Name")->fetchAll();
+
+// Get customer details
+$stmt = $pdo->prepare("SELECT * FROM Customer WHERE Customer_ID = ?");
+$stmt->execute([$_SESSION['customer_id']]);
+$customer = $stmt->fetch();
 
 // Process checkout
-if (isset($_POST['place_order'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $pdo->beginTransaction();
 
         // Create shipping address
         $stmt = $pdo->prepare("
-            INSERT INTO Shipping_Address (Street, Barangay, Town_City, Province, Region, Postal_Code) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO Shipping_Address (
+                Street, Barangay, Town_City, Province, Region, Postal_Code
+            ) VALUES (?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $_POST['street'],
@@ -82,9 +61,23 @@ if (isset($_POST['place_order'])) {
         ]);
         $shipping_address_id = $pdo->lastInsertId();
 
+        // Create order
+        $stmt = $pdo->prepare("
+            INSERT INTO `Order` (Customer_ID, Order_Date, Total_Amount)
+            VALUES (?, NOW(), ?)
+        ");
+        $stmt->execute([$_SESSION['customer_id'], $subtotal]);
+        $order_id = $pdo->lastInsertId();
+
+        // Insert order items
+        $stmt_order_items = $pdo->prepare("
+            INSERT INTO OrderItem (Order_ID, Product_ID, Quantity, Price)
+            VALUES (?, ?, ?, ?)
+        ");
+
         // Create shipping record
         $stmt = $pdo->prepare("
-            INSERT INTO Shipping (Shipping_Status, Shipping_Address_ID, Shipping_Method_ID) 
+            INSERT INTO Shipping (Shipping_Status, Shipping_Address_ID, Shipping_Method_ID)
             VALUES ('Pending', ?, ?)
         ");
         $stmt->execute([$shipping_address_id, $_POST['shipping_method']]);
@@ -92,59 +85,62 @@ if (isset($_POST['place_order'])) {
 
         // Create payment record
         $stmt = $pdo->prepare("
-            INSERT INTO Payment (Payment_Status, Payment_Method_ID, Payment_Date, Order_ID) 
-            VALUES ('Pending', ?, NOW(), ?)
+            INSERT INTO Payment (Payment_Method_ID, Payment_Date, Payment_Status, Amount, Order_ID)
+            VALUES (?, NOW(), 'Pending', ?, ?)
         ");
-        $stmt->execute([$_POST['payment_method'], $_SESSION['order_id']]);
+        $stmt->execute([$_POST['payment_method'], $subtotal, $order_id]);
         $payment_id = $pdo->lastInsertId();
 
-        // Update transaction records
+        // Create transaction record
         $stmt = $pdo->prepare("
-            UPDATE Transaction 
-            SET Shipping_ID = ?, Payment_ID = ?
-            WHERE Order_ID = ?
+            INSERT INTO Transaction (Order_ID, Product_ID, Shipping_ID, Receipt_ID, Payment_ID)
+            VALUES (?, ?, ?, NULL, ?)
         ");
-        $stmt->execute([$shipping_id, $payment_id, $_SESSION['order_id']]);
 
-        // Update product quantities
-        $stmt = $pdo->prepare("
-            UPDATE Product 
-            SET Stock = Stock - ? 
-            WHERE Product_ID = ?
-        ");
-        foreach ($_SESSION['cart'] as $product_id => $quantity) {
-            $stmt->execute([$quantity, $product_id]);
+        // Create order items and update stock
+        foreach ($cart_items as $item) {
+            // Insert order items
+            $stmt_order_items->execute([
+                $order_id,
+                $item['Product_ID'],
+                $item['Quantity'],
+                $item['Price']
+            ]);
+
+            // Insert transaction
+            $stmt->execute([
+                $order_id,
+                $item['Product_ID'],
+                $shipping_id,
+                $payment_id
+            ]);
+
+            // Update product stock
+            $update_stock = $pdo->prepare("
+                UPDATE Product 
+                SET Stock = Stock - ? 
+                WHERE Product_ID = ?
+            ");
+            $update_stock->execute([$item['Quantity'], $item['Product_ID']]);
         }
 
-        // Update order total
-        $stmt = $pdo->prepare("
-            UPDATE `Order` 
-            SET Total_Amount = ?
-            WHERE Order_ID = ?
-        ");
-        $stmt->execute([
-            $total,
-            $_SESSION['order_id']
-        ]);
+        // Clear cart
+        $stmt = $pdo->prepare("DELETE FROM Cart WHERE Customer_ID = ?");
+        $stmt->execute([$_SESSION['customer_id']]);
 
         $pdo->commit();
-
-        // Clear the cart
-        unset($_SESSION['cart']);
-        
-        // Store order ID for confirmation page
-        $order_id = $_SESSION['order_id'];
-        unset($_SESSION['order_id']);
-
-        // Redirect to confirmation page
+        $_SESSION['success_message'] = "Order placed successfully! Order ID: " . str_pad($order_id, 8, '0', STR_PAD_LEFT);
         header("Location: order_confirmation.php?order_id=" . $order_id);
         exit();
-
     } catch (Exception $e) {
         $pdo->rollBack();
-        $error = "Error processing order: " . $e->getMessage();
+        $_SESSION['error_message'] = "Failed to place order: " . $e->getMessage();
     }
 }
+
+$shipping_fee = $subtotal >= ($settings['free_shipping_threshold'] ?? 0) ? 0 : ($settings['shipping_fee'] ?? 0);
+$tax = $subtotal * (($settings['tax_rate'] ?? 0) / 100);
+$total = $subtotal + $shipping_fee + $tax;
 ?>
 
 <!DOCTYPE html>
@@ -154,173 +150,291 @@ if (isset($_POST['place_order'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkout - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f0f0f0;
+        }
+        .checkout-page {
+            margin: 2rem auto;
+        }
+        .checkout-header {
+            background-color: #f05537;
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .checkout-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            color: #f05537;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .cart-item {
+            padding: 1rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+        .product-image {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        .product-name {
+            font-weight: 500;
+            color: #333;
+        }
+        .item-price {
+            color: #f05537;
+            font-weight: 500;
+        }
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        .summary-total {
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding-top: 1rem;
+            margin-top: 1rem;
+            border-top: 2px solid #f0f0f0;
+        }
+        .btn-primary {
+            background-color: #f05537;
+            border-color: #f05537;
+        }
+        .btn-primary:hover {
+            background-color: #d64426;
+            border-color: #d64426;
+        }
+        .shipping-method, .payment-method {
+            padding: 1rem;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: block;
+        }
+        .shipping-method:hover, .payment-method:hover {
+            border-color: #f05537;
+            background-color: #fff5f3;
+        }
+        .shipping-method input:checked + div,
+        .payment-method input:checked + div {
+            color: #f05537;
+        }
+        .shipping-method input:checked + div strong,
+        .payment-method input:checked + div strong {
+            color: #f05537;
+        }
+        .shipping-method input:checked + div .text-muted,
+        .payment-method input:checked + div .text-muted {
+            color: #f05537 !important;
+            opacity: 0.8;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <?php include 'navbar.php'; ?>
+
+    <div class="checkout-page">
         <div class="container">
-            <a class="navbar-brand" href="index.php">Shoepee</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="products.php">Products</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <h1>Checkout</h1>
-
-        <?php if(isset($error)): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
-
-        <div class="row">
-            <div class="col-md-8">
-                <form method="POST" class="needs-validation" novalidate>
-                    <!-- Shipping Address -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Shipping Address</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="street" class="form-label">Street Address</label>
-                                    <input type="text" class="form-control" id="street" name="street" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="barangay" class="form-label">Barangay</label>
-                                    <input type="text" class="form-control" id="barangay" name="barangay" required>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="city" class="form-label">City</label>
-                                    <input type="text" class="form-control" id="city" name="city" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="province" class="form-label">Province</label>
-                                    <input type="text" class="form-control" id="province" name="province" required>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="region" class="form-label">Region</label>
-                                    <input type="text" class="form-control" id="region" name="region" required>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="postal_code" class="form-label">Postal Code</label>
-                                    <input type="text" class="form-control" id="postal_code" name="postal_code" required>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Shipping Method -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Shipping Method</h5>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach($shipping_methods as $method): ?>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio" name="shipping_method" 
-                                           id="shipping_<?php echo $method['Shipping_Method_ID']; ?>" 
-                                           value="<?php echo $method['Shipping_Method_ID']; ?>" required>
-                                    <label class="form-check-label" for="shipping_<?php echo $method['Shipping_Method_ID']; ?>">
-                                        <?php echo htmlspecialchars($method['Method_Name']); ?> - 
-                                        $<?php echo number_format($method['Cost'], 2); ?> 
-                                        (<?php echo htmlspecialchars($method['Estimated_Delivery_Time']); ?>)
-                                    </label>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Payment Method -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0">Payment Method</h5>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach($payment_methods as $method): ?>
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio" name="payment_method" 
-                                           id="payment_<?php echo $method['Payment_Method_ID']; ?>" 
-                                           value="<?php echo $method['Payment_Method_ID']; ?>" required>
-                                    <label class="form-check-label" for="payment_<?php echo $method['Payment_Method_ID']; ?>">
-                                        <?php echo htmlspecialchars($method['Method_Name']); ?> - 
-                                        <?php echo htmlspecialchars($method['Provider']); ?>
-                                        <?php if($method['Transaction_Fee'] > 0): ?>
-                                            (Fee: $<?php echo number_format($method['Transaction_Fee'], 2); ?>)
-                                        <?php endif; ?>
-                                    </label>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <button type="submit" name="place_order" class="btn btn-primary btn-lg">Place Order</button>
-                </form>
+            <div class="checkout-header">
+                <h2 class="m-0">Checkout</h2>
+                <p class="mb-0">Complete your order</p>
             </div>
 
-            <!-- Order Summary -->
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Order Summary</h5>
-                    </div>
-                    <div class="card-body">
-                        <?php foreach($order_items as $item): ?>
-                            <div class="d-flex justify-content-between mb-2">
-                                <span><?php echo htmlspecialchars($item['Product_Name']); ?> x <?php echo $item['Quantity']; ?></span>
-                                <span>$<?php echo number_format($item['Price'] * $item['Quantity'], 2); ?></span>
-                            </div>
-                        <?php endforeach; ?>
-                        <hr>
-                        <div class="d-flex justify-content-between">
-                            <strong>Subtotal</strong>
-                            <strong>$<?php echo number_format($total, 2); ?></strong>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Tax (12%)</span>
-                            <span>$<?php echo number_format($total * 0.12, 2); ?></span>
-                        </div>
-                        <hr>
-                        <div class="d-flex justify-content-between">
-                            <strong>Total</strong>
-                            <strong>$<?php echo number_format($total * 1.12, 2); ?></strong>
-                        </div>
-                    </div>
+            <?php if(isset($_SESSION['error_message'])): ?>
+                <div class="alert alert-danger">
+                    <?php 
+                        echo $_SESSION['error_message']; 
+                        unset($_SESSION['error_message']);
+                    ?>
                 </div>
-            </div>
+            <?php endif; ?>
+
+            <?php if(empty($cart_items)): ?>
+                <div class="checkout-card text-center">
+                    <h4>Your cart is empty</h4>
+                    <p>Add some products to your cart before checking out.</p>
+                    <a href="products.php" class="btn btn-primary">Browse Products</a>
+                </div>
+            <?php else: ?>
+                <form method="POST" class="row">
+                    <div class="col-md-8">
+                        <!-- Shipping Address -->
+                        <div class="checkout-card">
+                            <h4 class="section-title">Shipping Address</h4>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Street Address</label>
+                                    <input type="text" class="form-control" name="street" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Barangay</label>
+                                    <input type="text" class="form-control" name="barangay" required>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">City</label>
+                                    <input type="text" class="form-control" name="city" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Province</label>
+                                    <input type="text" class="form-control" name="province" required>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Region</label>
+                                    <input type="text" class="form-control" name="region" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Postal Code</label>
+                                    <input type="text" class="form-control" name="postal_code" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Shipping Method -->
+                        <div class="checkout-card">
+                            <h4 class="section-title">Shipping Method</h4>
+                            <?php foreach($shipping_methods as $method): ?>
+                                <label class="shipping-method w-100" for="shipping_<?php echo $method['Shipping_Method_ID']; ?>">
+                                    <input class="form-check-input visually-hidden" type="radio" 
+                                           name="shipping_method" 
+                                           id="shipping_<?php echo $method['Shipping_Method_ID']; ?>"
+                                           value="<?php echo $method['Shipping_Method_ID']; ?>" required>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong><?php echo htmlspecialchars($method['Method_Name']); ?></strong>
+                                            <div class="text-muted">
+                                                Estimated delivery: <?php echo htmlspecialchars($method['Estimated_Delivery_Time']); ?>
+                                            </div>
+                                        </div>
+                                        <div class="text-primary">
+                                            $<?php echo number_format($method['Cost'], 2); ?>
+                                        </div>
+                                    </div>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Payment Method -->
+                        <div class="checkout-card">
+                            <h4 class="section-title">Payment Method</h4>
+                            <?php foreach($payment_methods as $method): ?>
+                                <label class="payment-method w-100" for="payment_<?php echo $method['Payment_Method_ID']; ?>">
+                                    <input class="form-check-input visually-hidden" type="radio" 
+                                           name="payment_method" 
+                                           id="payment_<?php echo $method['Payment_Method_ID']; ?>"
+                                           value="<?php echo $method['Payment_Method_ID']; ?>" required>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong><?php echo htmlspecialchars($method['Method_Name']); ?></strong>
+                                            <div class="text-muted">
+                                                Provider: <?php echo htmlspecialchars($method['Provider']); ?>
+                                            </div>
+                                        </div>
+                                        <?php if($method['Transaction_Fee'] > 0): ?>
+                                            <div class="text-primary">
+                                                Fee: $<?php echo number_format($method['Transaction_Fee'], 2); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+
+                        <!-- Order Items -->
+                        <div class="checkout-card">
+                            <h4 class="section-title">Order Items</h4>
+                            <?php foreach($cart_items as $item): ?>
+                                <div class="cart-item">
+                                    <div class="row align-items-center">
+                                        <div class="col-2">
+                                            <img src="<?php echo htmlspecialchars($item['Image_Path'] ?? 'uploads/products/default.jpg'); ?>" 
+                                                 class="product-image" 
+                                                 alt="<?php echo htmlspecialchars($item['Product_Name']); ?>">
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="product-name"><?php echo htmlspecialchars($item['Product_Name']); ?></div>
+                                            <small class="text-muted">Quantity: <?php echo $item['Quantity']; ?></small>
+                                        </div>
+                                        <div class="col-4 text-end">
+                                            <div class="item-price">$<?php echo number_format($item['Price'] * $item['Quantity'], 2); ?></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
+                    <!-- Order Summary -->
+                    <div class="col-md-4">
+                        <div class="checkout-card">
+                            <h4 class="section-title">Order Summary</h4>
+                            <div class="summary-item">
+                                <span>Subtotal</span>
+                                <span>$<?php echo number_format($subtotal, 2); ?></span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Shipping</span>
+                                <span>$<?php echo number_format($shipping_fee, 2); ?></span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Tax (<?php echo number_format($settings['tax_rate'] ?? 0, 1); ?>%)</span>
+                                <span>$<?php echo number_format($tax, 2); ?></span>
+                            </div>
+                            <div class="summary-item summary-total">
+                                <span>Total</span>
+                                <span>$<?php echo number_format($total, 2); ?></span>
+                            </div>
+                            <div class="d-grid gap-2 mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg">Place Order</button>
+                                <a href="cart.php" class="btn btn-outline-secondary">Back to Cart</a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Form validation
-        (function () {
-            'use strict'
-            var forms = document.querySelectorAll('.needs-validation')
-            Array.prototype.slice.call(forms).forEach(function (form) {
-                form.addEventListener('submit', function (event) {
-                    if (!form.checkValidity()) {
-                        event.preventDefault()
-                        event.stopPropagation()
-                    }
-                    form.classList.add('was-validated')
-                }, false)
-            })
-        })()
+        // Add selection effect to shipping and payment methods
+        document.querySelectorAll('.shipping-method, .payment-method').forEach(label => {
+            label.addEventListener('click', function() {
+                const input = this.querySelector('input[type="radio"]');
+                const type = input.name === 'shipping_method' ? 'shipping-method' : 'payment-method';
+                
+                // Remove selected class from all methods of same type
+                document.querySelectorAll('.' + type).forEach(div => {
+                    div.classList.remove('selected');
+                });
+                
+                // Add selected class to clicked method
+                this.classList.add('selected');
+                
+                // Check the radio input
+                input.checked = true;
+            });
+        });
     </script>
 </body>
 </html> 

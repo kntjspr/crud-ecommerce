@@ -2,92 +2,55 @@
 session_start();
 require_once 'config/database.php';
 
-// Check if product ID is provided in query string
-if(!isset($_GET['id'])) {
+if (!isset($_GET['id'])) {
     header("Location: products.php");
     exit();
 }
 
-$product_id = (int)$_GET['id'];
+$product_id = $_GET['id'];
 
-// Get product details with category information
+// Get product details with category and ratings
 $stmt = $pdo->prepare("
-    SELECT p.*, c.Category_Name 
-    FROM Product p 
-    LEFT JOIN Category c ON p.Category_ID = c.Category_ID 
+    SELECT p.*, c.Category_Name,
+           (SELECT GROUP_CONCAT(Image_Path) FROM ProductImage pi WHERE pi.Product_ID = p.Product_ID) as Images,
+           (SELECT AVG(Rating) FROM Review r WHERE r.Product_ID = p.Product_ID) as avg_rating,
+           (SELECT COUNT(*) FROM Review r WHERE r.Product_ID = p.Product_ID) as review_count
+    FROM Product p
+    LEFT JOIN Category c ON p.Category_ID = c.Category_ID
     WHERE p.Product_ID = ?
 ");
 $stmt->execute([$product_id]);
 $product = $stmt->fetch();
 
-if(!$product) {
+if (!$product) {
     header("Location: products.php");
     exit();
 }
 
-// Get product images
-$stmt = $pdo->prepare("SELECT * FROM ProductImage WHERE Product_ID = ?");
-$stmt->execute([$product_id]);
-$images = $stmt->fetchAll();
-
-// Fetch product reviews
+// Get related products from same category
 $stmt = $pdo->prepare("
-    SELECT r.*, c.Username 
-    FROM Review r 
-    JOIN Customer c ON r.Customer_ID = c.Customer_ID 
-    WHERE r.Product_ID = ? 
+    SELECT p.*, 
+           (SELECT Image_Path FROM ProductImage pi WHERE pi.Product_ID = p.Product_ID LIMIT 1) as Image_Path
+    FROM Product p
+    WHERE p.Category_ID = ? AND p.Product_ID != ?
+    LIMIT 4
+");
+$stmt->execute([$product['Category_ID'], $product_id]);
+$related_products = $stmt->fetchAll();
+
+// Get product reviews
+$stmt = $pdo->prepare("
+    SELECT r.*, c.First_Name, c.Last_Name
+    FROM Review r
+    LEFT JOIN Customer c ON r.Customer_ID = c.Customer_ID
+    WHERE r.Product_ID = ?
     ORDER BY r.Review_Date DESC
 ");
 $stmt->execute([$product_id]);
 $reviews = $stmt->fetchAll();
 
-// Handle review submission
-if(isset($_POST['submit_review']) && isset($_SESSION['customer_id'])) {
-    $rating = (int)$_POST['rating'];
-    $review_text = $_POST['review_text'];
-    $customer_id = $_SESSION['customer_id'];
-    
-    $stmt = $pdo->prepare("INSERT INTO Review (Product_ID, Customer_ID, Rating, Review_Text, Review_Date) VALUES (?, ?, ?, ?, NOW())");
-    $stmt->execute([$product_id, $customer_id, $rating, $review_text]);
-    
-    header("Location: product_details.php?id=" . $product_id);
-    exit();
-}
-
-// Handle add to cart
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
-    // Initialize cart if it doesn't exist
-    if (!isset($_SESSION['cart'])) {
-        $_SESSION['cart'] = [];
-    }
-
-    $product_id = (int)$_POST['product_id'];
-    $quantity = (int)$_POST['quantity'];
-
-    // Validate quantity
-    if ($quantity > 0 && $quantity <= $product['Stock']) {
-        // Add to cart or update quantity if already exists
-        if (isset($_SESSION['cart'][$product_id])) {
-            // Check if new total quantity exceeds stock
-            $new_quantity = $_SESSION['cart'][$product_id] + $quantity;
-            if ($new_quantity <= $product['Stock']) {
-                $_SESSION['cart'][$product_id] = $new_quantity;
-                $_SESSION['success_message'] = "Cart updated successfully";
-            } else {
-                $_SESSION['error_message'] = "Cannot add more than available stock";
-            }
-        } else {
-            $_SESSION['cart'][$product_id] = $quantity;
-            $_SESSION['success_message'] = "Product added to cart";
-        }
-        
-        // Redirect to prevent form resubmission
-        header("Location: cart.php");
-        exit();
-    } else {
-        $_SESSION['error_message'] = "Invalid quantity";
-    }
-}
+// Split images into array
+$images = $product['Images'] ? explode(',', $product['Images']) : [];
 ?>
 
 <!DOCTYPE html>
@@ -99,221 +62,303 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_to_cart'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
-        .product-image {
+        body {
+            background-color: #f0f0f0;
+        }
+        .product-page {
+            margin: 2rem auto;
+        }
+        .product-card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .product-title {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        .product-category {
+            color: #f05537;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .product-price {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #f05537;
+            margin-bottom: 1.5rem;
+        }
+        .product-description {
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+        .stock-status {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .in-stock {
+            color: #198754;
+        }
+        .low-stock {
+            color: #ffc107;
+        }
+        .out-of-stock {
+            color: #dc3545;
+        }
+        .main-image {
             width: 100%;
             height: 400px;
-            object-fit: cover;
+            object-fit: contain;
+            margin-bottom: 1rem;
+            border-radius: 8px;
         }
         .thumbnail {
-            width: 100px;
-            height: 100px;
+            width: 80px;
+            height: 80px;
             object-fit: cover;
+            border-radius: 4px;
             cursor: pointer;
-            margin: 5px;
-            border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        .thumbnail:hover {
+            transform: scale(1.1);
         }
         .thumbnail.active {
-            border-color: #0d6efd;
+            border: 2px solid #f05537;
+        }
+        .quantity-input {
+            width: 100px;
+        }
+        .btn-primary {
+            background-color: #f05537;
+            border-color: #f05537;
+            padding: 0.75rem 2rem;
+        }
+        .btn-primary:hover {
+            background-color: #d64426;
+            border-color: #d64426;
+        }
+        .related-title {
+            color: #f05537;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .related-product {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            height: 100%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .related-product:hover {
+            transform: translateY(-5px);
+        }
+        .related-image {
+            width: 100%;
+            height: 150px;
+            object-fit: contain;
+            margin-bottom: 1rem;
+        }
+        .related-name {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        .related-price {
+            color: #f05537;
+            font-weight: 600;
+        }
+        .stars {
+            color: #ffc107;
+            font-size: 1.1rem;
+        }
+        .rating-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+        .rating-count {
+            font-size: 0.9rem;
+        }
+        .review-item {
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .review-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .reviewer-name {
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+        .review-date {
+            font-size: 0.875rem;
+        }
+        .review-text {
+            color: #666;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <?php include 'navbar.php'; ?>
+
+    <div class="product-page">
         <div class="container">
-            <a class="navbar-brand" href="index.php">Shoepee</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="products.php">Products</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <?php if(isset($_SESSION['customer_id'])): ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="cart.php">Cart</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="profile.php">Profile</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="logout.php">Logout</a>
-                        </li>
-                    <?php else: ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="login.php">Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="register.php">Register</a>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-                <li class="breadcrumb-item"><a href="products.php">Products</a></li>
-                <li class="breadcrumb-item active"><?php echo htmlspecialchars($product['Product_Name']); ?></li>
-            </ol>
-        </nav>
-
-        <div class="row">
-            <div class="col-md-6">
-                <?php if(!empty($images)): ?>
-                    <div id="productCarousel" class="carousel slide mb-3" data-bs-ride="carousel">
-                        <div class="carousel-inner">
-                            <?php foreach($images as $index => $image): ?>
-                                <div class="carousel-item <?php echo $index === 0 ? 'active' : ''; ?>">
-                                    <img src="<?php echo htmlspecialchars($image['Image_Path']); ?>" 
-                                         class="d-block product-image" 
-                                         alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php if(count($images) > 1): ?>
-                            <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
-                                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                                <span class="visually-hidden">Previous</span>
-                            </button>
-                            <button class="carousel-control-next" type="button" data-bs-target="#productCarousel" data-bs-slide="next">
-                                <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                                <span class="visually-hidden">Next</span>
-                            </button>
+            <div class="product-card">
+                <div class="row">
+                    <!-- Product Images -->
+                    <div class="col-md-6">
+                        <img src="<?php echo htmlspecialchars($images[0] ?? 'uploads/products/default.jpg'); ?>" 
+                             class="main-image" id="mainImage" alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
+                        
+                        <?php if (count($images) > 1): ?>
+                            <div class="d-flex gap-2 mt-3">
+                                <?php foreach($images as $index => $image): ?>
+                                    <img src="<?php echo htmlspecialchars($image); ?>" 
+                                         class="thumbnail <?php echo $index === 0 ? 'active' : ''; ?>"
+                                         onclick="changeImage('<?php echo htmlspecialchars($image); ?>', this)"
+                                         alt="Product thumbnail">
+                                <?php endforeach; ?>
+                            </div>
                         <?php endif; ?>
                     </div>
-                    <?php if(count($images) > 1): ?>
-                        <div class="d-flex flex-wrap justify-content-center">
-                            <?php foreach($images as $index => $image): ?>
-                                <img src="<?php echo htmlspecialchars($image['Image_Path']); ?>" 
-                                     class="thumbnail <?php echo $index === 0 ? 'active' : ''; ?>"
-                                     data-bs-target="#productCarousel"
-                                     data-bs-slide-to="<?php echo $index; ?>"
-                                     alt="Thumbnail">
-                            <?php endforeach; ?>
+
+                    <!-- Product Details -->
+                    <div class="col-md-6">
+                        <div class="product-category">
+                            <i class="bi bi-tag"></i> <?php echo htmlspecialchars($product['Category_Name']); ?>
                         </div>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <img src="uploads/products/default.jpg" class="product-image" alt="Default Product Image">
-                <?php endif; ?>
-            </div>
-            
-            <div class="col-md-6">
-                <h1><?php echo htmlspecialchars($product['Product_Name']); ?></h1>
-                <p class="text-muted">Category: <?php echo htmlspecialchars($product['Category_Name']); ?></p>
-                
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5>Description</h5>
-                        <p><?php echo nl2br(htmlspecialchars($product['Description'])); ?></p>
-                        
-                        <h5>Price</h5>
-                        <p class="h3 text-primary">$<?php echo number_format($product['Price'], 2); ?></p>
-                        
-                        <h5>Stock Status</h5>
-                        <?php if($product['Stock'] > 0): ?>
-                            <p class="text-success">In Stock (<?php echo $product['Stock']; ?> available)</p>
-                            <form method="POST" class="mt-3">
-                                <input type="hidden" name="product_id" value="<?php echo $product['Product_ID']; ?>">
-                                <div class="row g-3 align-items-center">
-                                    <div class="col-auto">
-                                        <input type="number" 
-                                               name="quantity" 
-                                               class="form-control" 
-                                               value="1" 
-                                               min="1" 
-                                               max="<?php echo $product['Stock']; ?>" 
-                                               required>
-                                    </div>
-                                    <div class="col-auto">
-                                        <button type="submit" 
-                                                name="add_to_cart" 
-                                                class="btn btn-primary"
-                                                <?php echo $product['Stock'] <= 0 ? 'disabled' : ''; ?>>
-                                            Add to Cart
-                                        </button>
-                                    </div>
+                        <h1 class="product-title"><?php echo htmlspecialchars($product['Product_Name']); ?></h1>
+                        <div class="product-price">$<?php echo number_format($product['Price'], 2); ?></div>
+                        <div class="product-rating mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="stars">
+                                    <?php
+                                    $rating = round($product['avg_rating'] ?? 0);
+                                    for ($i = 1; $i <= 5; $i++) {
+                                        if ($i <= $rating) {
+                                            echo '<i class="bi bi-star-fill text-warning"></i>';
+                                        } else {
+                                            echo '<i class="bi bi-star text-warning"></i>';
+                                        }
+                                    }
+                                    ?>
                                 </div>
+                                <span class="rating-value"><?php echo number_format($product['avg_rating'] ?? 0, 1); ?></span>
+                                <span class="rating-count text-muted">(<?php echo $product['review_count'] ?? 0; ?> reviews)</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stock-status mb-4">
+                            <?php if($product['Stock'] > 10): ?>
+                                <span class="in-stock"><i class="bi bi-check-circle"></i> In Stock</span>
+                            <?php elseif($product['Stock'] > 0): ?>
+                                <span class="low-stock"><i class="bi bi-exclamation-circle"></i> Low Stock - Only <?php echo $product['Stock']; ?> left</span>
+                            <?php else: ?>
+                                <span class="out-of-stock"><i class="bi bi-x-circle"></i> Out of Stock</span>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="product-description">
+                            <?php echo nl2br(htmlspecialchars($product['Description'])); ?>
+                        </div>
+
+                        <?php if($product['Stock'] > 0): ?>
+                            <form action="cart.php" method="POST" class="d-flex gap-3 align-items-center">
+                                <input type="hidden" name="product_id" value="<?php echo $product['Product_ID']; ?>">
+                                <input type="number" name="quantity" value="1" min="1" 
+                                       max="<?php echo $product['Stock']; ?>" 
+                                       class="form-control quantity-input">
+                                <button type="submit" name="add_to_cart" class="btn btn-primary">
+                                    <i class="bi bi-cart-plus"></i> Add to Cart
+                                </button>
                             </form>
-                        <?php else: ?>
-                            <p class="text-danger">Out of Stock</p>
                         <?php endif; ?>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Reviews Section -->
-        <div class="row">
-            <div class="col-md-8">
-                <h3>Customer Reviews</h3>
-                <?php if(isset($_SESSION['customer_id'])): ?>
-                    <form action="" method="POST" class="mb-4">
-                        <div class="mb-3">
-                            <label for="rating" class="form-label">Rating</label>
-                            <select class="form-select" id="rating" name="rating" required>
-                                <option value="5">5 - Excellent</option>
-                                <option value="4">4 - Very Good</option>
-                                <option value="3">3 - Good</option>
-                                <option value="2">2 - Fair</option>
-                                <option value="1">1 - Poor</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="review_text" class="form-label">Your Review</label>
-                            <textarea class="form-control" id="review_text" name="review_text" rows="3" required></textarea>
-                        </div>
-                        <button type="submit" name="submit_review" class="btn btn-primary">Submit Review</button>
-                    </form>
-                <?php else: ?>
-                    <div class="alert alert-info">
-                        Please <a href="login.php">login</a> to write a review.
+            <!-- Related Products -->
+            <?php if(count($related_products) > 0): ?>
+                <div class="product-card">
+                    <h3 class="related-title">Related Products</h3>
+                    <div class="row">
+                        <?php foreach($related_products as $related): ?>
+                            <div class="col-md-3 mb-4">
+                                <a href="product_details.php?id=<?php echo $related['Product_ID']; ?>" 
+                                   class="text-decoration-none">
+                                    <div class="related-product">
+                                        <img src="<?php echo htmlspecialchars($related['Image_Path'] ?? 'uploads/products/default.jpg'); ?>" 
+                                             class="related-image" 
+                                             alt="<?php echo htmlspecialchars($related['Product_Name']); ?>">
+                                        <div class="related-name"><?php echo htmlspecialchars($related['Product_Name']); ?></div>
+                                        <div class="related-price">$<?php echo number_format($related['Price'], 2); ?></div>
+                                    </div>
+                                </a>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
-                <?php endif; ?>
+                </div>
+            <?php endif; ?>
 
-                <?php foreach($reviews as $review): ?>
-                    <div class="card mb-3">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between">
-                                <h5 class="card-title"><?php echo htmlspecialchars($review['Username']); ?></h5>
-                                <div class="text-warning">
-                                    <?php for($i = 0; $i < $review['Rating']; $i++) echo '★'; ?>
-                                    <?php for($i = $review['Rating']; $i < 5; $i++) echo '☆'; ?>
+            <!-- Reviews Section -->
+            <?php if(count($reviews) > 0): ?>
+                <div class="product-card">
+                    <h3 class="related-title">Customer Reviews</h3>
+                    <div class="reviews-list">
+                        <?php foreach($reviews as $review): ?>
+                            <div class="review-item mb-4">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <div class="reviewer-name fw-bold">
+                                            <?php echo htmlspecialchars($review['First_Name'] . ' ' . $review['Last_Name']); ?>
+                                        </div>
+                                        <div class="review-date text-muted small">
+                                            <?php echo date('F j, Y', strtotime($review['Review_Date'])); ?>
+                                        </div>
+                                    </div>
+                                    <div class="stars">
+                                        <?php
+                                        for ($i = 1; $i <= 5; $i++) {
+                                            if ($i <= $review['Rating']) {
+                                                echo '<i class="bi bi-star-fill text-warning"></i>';
+                                            } else {
+                                                echo '<i class="bi bi-star text-warning"></i>';
+                                            }
+                                        }
+                                        ?>
+                                    </div>
+                                </div>
+                                <div class="review-text">
+                                    <?php echo nl2br(htmlspecialchars($review['Review_Text'])); ?>
                                 </div>
                             </div>
-                            <p class="card-text"><?php echo nl2br(htmlspecialchars($review['Review_Text'])); ?></p>
-                            <small class="text-muted">Posted on <?php echo date('M d, Y', strtotime($review['Review_Date'])); ?></small>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
-                <?php endforeach; ?>
-            </div>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Initialize thumbnails
-        document.querySelectorAll('.thumbnail').forEach(thumb => {
-            thumb.addEventListener('click', function() {
-                document.querySelectorAll('.thumbnail').forEach(t => t.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
+    <?php include 'footer.php'; ?>
 
-        // Update thumbnail active state when carousel slides
-        document.getElementById('productCarousel')?.addEventListener('slid.bs.carousel', function (event) {
-            document.querySelectorAll('.thumbnail').forEach((thumb, index) => {
-                thumb.classList.toggle('active', index === event.to);
-            });
-        });
+    <script>
+        function changeImage(src, thumbnail) {
+            document.getElementById('mainImage').src = src;
+            // Remove active class from all thumbnails
+            document.querySelectorAll('.thumbnail').forEach(thumb => thumb.classList.remove('active'));
+            // Add active class to clicked thumbnail
+            thumbnail.classList.add('active');
+        }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html> 

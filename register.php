@@ -2,8 +2,7 @@
 session_start();
 require_once 'config/database.php';
 
-// Check if the registration form is submitted
-if(isset($_POST['register'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'];
     $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
     $first_name = $_POST['first_name'];
@@ -20,21 +19,17 @@ if(isset($_POST['register'])) {
         // Insert customer into database
         $stmt = $pdo->prepare("INSERT INTO Customer (Username, Password, First_Name, Last_Name, Email, Phone_Number) VALUES (?, ?, ?, ?, ?, ?)");
         if($stmt->execute([$username, $password, $first_name, $last_name, $email, $phone])) {
-           
-            // Get the customer details after registration
             $customer_id = $pdo->lastInsertId();
-            $stmt = $pdo->prepare("SELECT * FROM Customer WHERE Customer_ID = ?");
-            $stmt->execute([$customer_id]);
-            $customer = $stmt->fetch();
             
-            // Set all required session variables
-            $_SESSION['logged_in'] = true;
+            // Set session variables like in login.php
             $_SESSION['customer_id'] = $customer_id;
-            $_SESSION['username'] = $username;
-            $_SESSION['first_name'] = $customer['First_Name'];
-            $_SESSION['last_name'] = $customer['Last_Name'];
+            $_SESSION['user_name'] = $first_name . ' ' . $last_name;
+            $_SESSION['is_admin'] = false;
             
-            header("Location: index.php");
+            // Redirect to intended page or home
+            $redirect_url = isset($_SESSION['redirect_after_login']) ? $_SESSION['redirect_after_login'] : 'index.php';
+            unset($_SESSION['redirect_after_login']);
+            header("Location: " . $redirect_url);
             exit();
         } else {
             $error = "Registration failed";
@@ -48,132 +43,122 @@ if(isset($_POST['register'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register - Shoepee</title>
+    <title>Register for Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        :root {
-            --primary-color: #f44336;
-            --secondary-color: #ff8a80;
-            --bg-color: #f0f0f0;
-        }
-        
         body {
-            background-color: var(--bg-color);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background-color: #f0f0f0;
         }
-        
-        .registration-container {
+        /* Scope all register styles to avoid affecting navbar */
+        .register-page .register-container {
+            max-width: 500px;
+            margin: 2rem auto;
+            padding: 0;
             background: white;
             border-radius: 8px;
-            width: 100%;
-            max-width: 500px;
-            padding: 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        
-        .registration-header {
-            background-color: var(--primary-color);
+        .register-page .register-header {
+            background-color: #f05537;
             color: white;
-            padding: 20px;
+            padding: 1rem;
             text-align: center;
-            font-size: 24px;
             border-radius: 8px 8px 0 0;
         }
-        
-        .registration-form {
-            padding: 30px;
-            background: #e0e0e0;
+        .register-page .register-form {
+            padding: 2rem;
         }
-        
-        .form-label {
-            font-weight: 500;
-            margin-bottom: 8px;
+        .register-page .form-label {
+            color: #666;
+            font-weight: normal;
+            margin-bottom: 0.5rem;
         }
-        
-        .form-control {
-            padding: 12px;
-            border: none;
+        .register-page .form-control {
+            border: 1px solid #ddd;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
             border-radius: 4px;
-            margin-bottom: 16px;
         }
-        
-        .register-btn {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 12px;
+        .register-page .btn-register {
+            background-color: #f05537;
             border: none;
-            border-radius: 4px;
+            padding: 0.75rem;
             width: 100%;
-            margin-top: 20px;
-            font-size: 16px;
+            font-weight: 500;
+            border-radius: 4px;
         }
-        
-        .register-btn:hover {
-            background-color: var(--secondary-color);
+        .register-page .btn-register:hover {
+            background-color: #e04527;
         }
-        
-        .login-link {
+        .register-page .login-link {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 1rem;
+            color: #666;
         }
-        
-        .login-link a {
-            color: #6366f1;
+        .register-page .login-link a {
+            color: #f05537;
             text-decoration: none;
+        }
+        .register-page .login-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="registration-container">
-        <div class="registration-header">
-            Register for Shoepee
-        </div>
-        <div class="registration-form">
-            <?php if(isset($error)): ?>
-                <div class="alert alert-danger"><?php echo $error; ?></div>
-            <?php endif; ?>
-            
-            <form method="POST">
-                <div class="form-group">
-                    <label class="form-label">Username</label>
-                    <input type="text" class="form-control" name="username" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Password</label>
-                    <input type="password" class="form-control" name="password" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">First Name</label>
-                    <input type="text" class="form-control" name="first_name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Last Name</label>
-                    <input type="text" class="form-control" name="last_name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Email</label>
-                    <input type="email" class="form-control" name="email" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Phone Number</label>
-                    <input type="tel" class="form-control" name="phone" required>
-                </div>
-                
-                <button type="submit" name="register" class="register-btn">Register</button>
-                
+    <?php include 'navbar.php'; ?>
+
+    <div class="register-page">
+        <div class="register-container">
+            <div class="register-header">
+                <h2 class="m-0">Register for Shoepee</h2>
+            </div>
+
+            <div class="register-form">
+                <?php if(isset($error_message)): ?>
+                    <div class="alert alert-danger"><?php echo $error_message; ?></div>
+                <?php endif; ?>
+
+                <form method="POST" action="">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" name="username" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" name="password" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">First Name</label>
+                        <input type="text" class="form-control" name="first_name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Last Name</label>
+                        <input type="text" class="form-control" name="last_name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control" name="phone" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-register">Register</button>
+                </form>
+
                 <div class="login-link">
                     Already have an account? <a href="login.php">Login here</a>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html> 

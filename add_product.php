@@ -4,80 +4,62 @@ require_once 'config/database.php';
 
 // Check if user is admin
 if (!isset($_SESSION['employee_id']) || !isset($_SESSION['is_admin']) || !$_SESSION['is_admin']) {
-    header("Location: login.php?error=unauthorized");
+    header("Location: login.php");
     exit();
 }
 
-// Create uploads directory if it doesn't exist
-$upload_dir = 'uploads/products/';
-if (!file_exists($upload_dir)) {
-    mkdir($upload_dir, 0777, true);
-}
+// Get categories for dropdown
+$categories = $pdo->query("SELECT * FROM Category")->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $product_name = trim($_POST['product_name']);
-    $description = trim($_POST['description']);
-    $price = floatval($_POST['price']);
-    $stock = intval($_POST['stock']);
-    $image_paths = [];
+    try {
+        $pdo->beginTransaction();
 
-    // Handle image uploads
-    if (!empty($_FILES['images']['name'][0])) {
-        $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-        $max_size = 5 * 1024 * 1024; // 5MB
+        // Insert product
+        $stmt = $pdo->prepare("
+            INSERT INTO Product (Product_Name, Description, Price, Stock, Category_ID) 
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $_POST['name'],
+            $_POST['description'],
+            $_POST['price'],
+            $_POST['stock'],
+            $_POST['category']
+        ]);
+        $product_id = $pdo->lastInsertId();
 
-        foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
-            if ($_FILES['images']['error'][$key] === UPLOAD_ERR_OK) {
-                $file_type = $_FILES['images']['type'][$key];
-                $file_size = $_FILES['images']['size'][$key];
-                
-                if (!in_array($file_type, $allowed_types)) {
-                    $_SESSION['error_message'] = "Invalid file type. Only JPG, PNG and GIF are allowed.";
-                    break;
-                }
-                
-                if ($file_size > $max_size) {
-                    $_SESSION['error_message'] = "File size too large. Maximum size is 5MB.";
-                    break;
-                }
-                
-                $file_name = uniqid() . '_' . $_FILES['images']['name'][$key];
-                $destination = $upload_dir . $file_name;
-                
-                if (move_uploaded_file($tmp_name, $destination)) {
-                    $image_paths[] = $destination;
+        // Handle image uploads
+        if (!empty($_FILES['images']['name'][0])) {
+            $upload_dir = 'uploads/products/';
+            if (!file_exists($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+
+            foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
+                if ($_FILES['images']['error'][$key] === 0) {
+                    $file_extension = pathinfo($_FILES['images']['name'][$key], PATHINFO_EXTENSION);
+                    $new_filename = uniqid() . '.' . $file_extension;
+                    $destination = $upload_dir . $new_filename;
+
+                    if (move_uploaded_file($tmp_name, $destination)) {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO ProductImage (Product_ID, Image_Path) 
+                            VALUES (?, ?)
+                        ");
+                        $stmt->execute([$product_id, $destination]);
+                    }
                 }
             }
         }
-    }
 
-    if (empty($product_name) || empty($description) || $price <= 0 || $stock < 0) {
-        $_SESSION['error_message'] = "Please fill all fields correctly";
-    } else {
-        try {
-            $pdo->beginTransaction();
-            
-            // Insert product
-            $stmt = $pdo->prepare("INSERT INTO Product (Product_Name, Description, Price, Stock) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$product_name, $description, $price, $stock]);
-            $product_id = $pdo->lastInsertId();
-            
-            // Insert image paths
-            if (!empty($image_paths)) {
-                $stmt = $pdo->prepare("INSERT INTO ProductImage (Product_ID, Image_Path) VALUES (?, ?)");
-                foreach ($image_paths as $path) {
-                    $stmt->execute([$product_id, $path]);
-                }
-            }
-            
-            $pdo->commit();
-            $_SESSION['success_message'] = "Product added successfully";
-            header("Location: manage_products.php");
-            exit();
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            $_SESSION['error_message'] = "Error adding product: " . $e->getMessage();
-        }
+        $pdo->commit();
+        $_SESSION['success_message'] = "Product added successfully!";
+        header("Location: manage_products.php");
+        exit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $error_message = "Failed to add product: " . $e->getMessage();
     }
 }
 ?>
@@ -90,94 +72,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <title>Add Product - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .image-preview {
-            max-width: 200px;
-            max-height: 200px;
-            margin: 10px;
+        body {
+            background-color: #f0f0f0;
+        }
+        .add-page .add-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .add-page .add-header {
+            background-color: #f05537;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+        .add-page .add-form {
+            padding: 2rem;
+        }
+        .add-page .form-label {
+            color: #666;
+            font-weight: normal;
+            margin-bottom: 0.5rem;
+        }
+        .add-page .form-control {
+            border: 1px solid #ddd;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: 4px;
+        }
+        .add-page .btn-add {
+            background-color: #f05537;
+            border: none;
+            padding: 0.75rem;
+            font-weight: 500;
+            border-radius: 4px;
+            color: white;
+        }
+        .add-page .btn-add:hover {
+            background-color: #e04527;
+        }
+        .add-page .section-title {
+            color: #f05537;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .add-page .image-preview {
+            max-width: 150px;
+            max-height: 150px;
+            margin: 0.5rem;
+            border-radius: 4px;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Shoepee</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="products.php">Products</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="admin_dashboard.php">Admin Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="manage_products.php">Manage Products</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="logout.php">Logout</a>
-                    </li>
-                </ul>
+    <?php include 'navbar.php'; ?>
+
+    <div class="add-page">
+        <div class="add-container">
+            <div class="add-header">
+                <h2 class="m-0">Add New Product</h2>
+            </div>
+
+            <div class="add-form">
+                <?php if(isset($error_message)): ?>
+                    <div class="alert alert-danger"><?php echo $error_message; ?></div>
+                <?php endif; ?>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <h4 class="section-title">Product Information</h4>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Product Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3" required></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Price</label>
+                                <input type="number" class="form-control" name="price" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Stock</label>
+                                <input type="number" class="form-control" name="stock" required>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Category</label>
+                                <select class="form-control" name="category" required>
+                                    <option value="">Select Category</option>
+                                    <?php foreach($categories as $category): ?>
+                                        <option value="<?php echo $category['Category_ID']; ?>">
+                                            <?php echo htmlspecialchars($category['Category_Name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 class="section-title">Product Images</h4>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Upload Images</label>
+                        <input type="file" class="form-control" name="images[]" accept="image/*" multiple required>
+                        <div class="form-text">You can select multiple images. Supported formats: JPG, PNG, GIF</div>
+                    </div>
+
+                    <div id="imagePreview" class="mb-3 d-flex flex-wrap"></div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="manage_products.php" class="btn btn-secondary">Back</a>
+                        <button type="submit" class="btn btn-add">Add Product</button>
+                    </div>
+                </form>
             </div>
         </div>
-    </nav>
-
-    <div class="container mt-4">
-        <h1>Add New Product</h1>
-        
-        <?php if(isset($_SESSION['error_message'])): ?>
-            <div class="alert alert-danger">
-                <?php 
-                    echo $_SESSION['error_message'];
-                    unset($_SESSION['error_message']);
-                ?>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" class="mt-4" enctype="multipart/form-data">
-            <div class="mb-3">
-                <label for="product_name" class="form-label">Product Name</label>
-                <input type="text" class="form-control" id="product_name" name="product_name" required>
-            </div>
-            
-            <div class="mb-3">
-                <label for="description" class="form-label">Description</label>
-                <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
-            </div>
-            
-            <div class="mb-3">
-                <label for="price" class="form-label">Price ($)</label>
-                <input type="number" class="form-control" id="price" name="price" step="0.01" min="0" required>
-            </div>
-            
-            <div class="mb-3">
-                <label for="stock" class="form-label">Stock</label>
-                <input type="number" class="form-control" id="stock" name="stock" min="0" required>
-            </div>
-
-            <div class="mb-3">
-                <label for="images" class="form-label">Product Images</label>
-                <input type="file" class="form-control" id="images" name="images[]" accept="image/*" multiple required>
-                <div id="imagePreview" class="mt-2 d-flex flex-wrap"></div>
-            </div>
-            
-            <div class="mb-3">
-                <button type="submit" class="btn btn-primary">Add Product</button>
-                <a href="manage_products.php" class="btn btn-secondary">Cancel</a>
-            </div>
-        </form>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Image preview functionality
-        document.getElementById('images').addEventListener('change', function(e) {
+        document.querySelector('input[type="file"]').addEventListener('change', function(e) {
             const preview = document.getElementById('imagePreview');
             preview.innerHTML = '';
             

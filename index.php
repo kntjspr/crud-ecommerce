@@ -18,16 +18,11 @@ if (!isset($pdo)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shoepee - Your One-Stop Shoe Shop</title>
+    <title>Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #f44336;
-            --secondary-color: #ff8a80;
-        }
-        
-        .navbar {
-            background-color: var(--primary-color) !important;
+            --primary-color: #f05537;
         }
         
         .hero-section {
@@ -68,59 +63,67 @@ if (!isset($pdo)) {
             transform: translateY(30%);
             z-index: 1;
         }
-        
-        .product-card {
-            border: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
+
+        /* Product section styling */
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+            padding: 0;
         }
-        
+        .product-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         .product-card:hover {
             transform: translateY(-5px);
         }
-        
+        .product-image {
+            width: 100%;
+            height: 250px;
+            object-fit: contain;
+            margin-bottom: 1rem;
+        }
+        .product-name {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
         .product-price {
             color: var(--primary-color);
-            font-size: 1.25rem;
-            font-weight: bold;
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
         }
-        
-        .rating {
-            color: #ffd700;
-        }
-        
-        .section-title {
+        .product-rating {
             color: var(--primary-color);
-            margin-bottom: 30px;
+        }
+        .rating-count {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .page-title {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 2rem;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">
-                <img src="uploads/shoepee_logo.png" width="30" height="30" class="d-inline-block align-top" alt="">
-                Shoepee
-            </a>
-            <div class="d-flex align-items-center">
-                <a href="products.php" class="text-white text-decoration-none mx-3">Products</a>
-                <a href="admin_dashboard.php" class="text-white text-decoration-none mx-3">Admin Dashboard</a>
-                <a href="manage_products.php" class="text-white text-decoration-none mx-3">Manage Products</a>
-                <a href="register_employee.php" class="text-white text-decoration-none mx-3">Register Employee</a>
-                <div class="ms-3">
-                    <a href="profile.php" class="text-white text-decoration-none">Profile</a> |
-                    <a href="logout.php" class="text-white text-decoration-none">Logout</a>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <?php include 'navbar.php'; ?>
 
     <div class="hero-section">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-md-6">
                     <h1>Welcome to Shoepee</h1>
-                    <p>Find your perfect pair of shoe!</p>
+                    <p>Find your perfect pair of shoes!</p>
                 </div>
                 <div class="col-md-6">
                     <div class="position-relative">
@@ -133,8 +136,8 @@ if (!isset($pdo)) {
     </div>
 
     <div class="container">
-        <h2 class="section-title">Top Products</h2>
-        <div class="row">
+        <h2 class="page-title">Top Products</h2>
+        <div class="product-grid">
             <?php
             $stmt = $pdo->query("
                 SELECT p.*, 
@@ -151,32 +154,29 @@ if (!isset($pdo)) {
             ");
             while($product = $stmt->fetch()){
             ?>
-                <div class="col-md-3 mb-4">
-                    <a href="product_details.php?id=<?php echo $product['Product_ID']; ?>" 
-                       class="text-decoration-none">
-                        <div class="card product-card">
-                            <img src="<?php echo htmlspecialchars($product['Image_Path'] ?? 'uploads/products/default.jpg'); ?>" 
-                                 class="card-img-top product-image" 
-                                 alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
-                            <div class="card-body">
-                                <h5 class="card-title"><?php echo htmlspecialchars($product['Product_Name']); ?></h5>
-                                <p class="product-price">$<?php echo number_format($product['Price'], 2); ?></p>
-                                <div class="rating">
-                                    <?php
-                                    $rating = round($product['avg_rating'] ?? 0);
-                                    for($i = 0; $i < 5; $i++) {
-                                        echo $i < $rating ? '★' : '☆';
-                                    }
-                                    echo " (" . ($product['review_count'] ?? 0) . " reviews)";
-                                    ?>
-                                </div>
-                            </div>
-                        </div>
-                    </a>
-                </div>
+                <a href="product_details.php?id=<?php echo $product['Product_ID']; ?>" class="product-card">
+                    <img 
+                        src="<?php echo htmlspecialchars($product['Image_Path'] ?? 'uploads/products/default.jpg'); ?>" 
+                        class="product-image" 
+                        alt="<?php echo htmlspecialchars($product['Product_Name']); ?>"
+                    >
+                    <h2 class="product-name"><?php echo htmlspecialchars($product['Product_Name']); ?></h2>
+                    <div class="product-price">$<?php echo number_format($product['Price'], 2); ?></div>
+                    <div class="product-rating">
+                        <?php
+                        $rating = round($product['avg_rating'] ?? 0);
+                        for($i = 0; $i < 5; $i++) {
+                            echo $i < $rating ? '★' : '☆';
+                        }
+                        ?>
+                        <span class="rating-count">(<?php echo $product['review_count'] ?? 0; ?> reviews)</span>
+                    </div>
+                </a>
             <?php } ?>
         </div>
     </div>
+
+    <?php include 'footer.php'; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

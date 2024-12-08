@@ -2,15 +2,26 @@
 session_start();
 require_once 'config/database.php';
 
-// Get all products with their first image
-$stmt = $pdo->query("
-    SELECT p.*, 
-           (SELECT Image_Path FROM ProductImage pi 
-            WHERE pi.Product_ID = p.Product_ID 
-            LIMIT 1) as Image_Path
-    FROM Product p 
+// Add search functionality to the existing query
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$where_clause = '';
+$params = [];
+
+if ($search !== '') {
+    $where_clause = "WHERE p.Product_Name LIKE ? OR p.Description LIKE ? OR c.Category_Name LIKE ?";
+    $search_term = "%{$search}%";
+    $params = [$search_term, $search_term, $search_term];
+}
+
+$stmt = $pdo->prepare("
+    SELECT p.*, c.Category_Name,
+           (SELECT Image_Path FROM ProductImage pi WHERE pi.Product_ID = p.Product_ID LIMIT 1) as Image_Path
+    FROM Product p
+    LEFT JOIN Category c ON p.Category_ID = c.Category_ID
+    $where_clause
     ORDER BY p.Product_ID DESC
 ");
+$stmt->execute($params);
 $products = $stmt->fetchAll();
 ?>
 
@@ -22,101 +33,91 @@ $products = $stmt->fetchAll();
     <title>Products - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        body {
+            background-color: #f0f0f0;
+        }
+        .products-page {
+            padding: 2rem 0;
+        }
+        .page-title {
+            color: #f05537;
+            font-size: 2rem;
+            margin-bottom: 2rem;
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 2rem;
+            padding: 0;
+        }
+        .product-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+        }
         .product-image {
             width: 100%;
-            height: 200px;
-            object-fit: cover;
+            height: 250px;
+            object-fit: contain;
+            margin-bottom: 1rem;
         }
-        .card {
-            height: 100%;
+        .product-name {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        .product-price {
+            color: #f05537;
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        .product-rating {
+            color: #f05537;
+        }
+        .rating-count {
+            color: #666;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Shoepee</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="products.php">Products</a>
-                    </li>
-                    <?php if(isset($_SESSION['employee_id'])): ?>
-                        <?php if(isset($_SESSION['is_admin']) && $_SESSION['is_admin']): ?>
-                            <li class="nav-item">
-                                <a class="nav-link" href="admin_dashboard.php">Admin Dashboard</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="manage_products.php">Manage Products</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="employee_register.php">Register Employee</a>
-                            </li>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                </ul>
-                <ul class="navbar-nav">
-                    <?php if(isset($_SESSION['employee_id']) || isset($_SESSION['customer_id'])): ?>
-                        <li class="nav-item">
-                            <span class="nav-link">Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></span>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="profile.php">Profile</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="logout.php">Logout</a>
-                        </li>
-                    <?php else: ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="login.php">Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="register.php">Register</a>
-                        </li>
-                    <?php endif; ?>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <?php include 'navbar.php'; ?>
 
-    <div class="container mt-4">
-        <h1>Our Products</h1>
-        <div class="row">
-            <?php foreach($products as $product): ?>
-                <div class="col-md-4 mb-4">
-                    <div class="card">
-                        <?php if($product['Image_Path']): ?>
-                            <img src="<?php echo htmlspecialchars($product['Image_Path']); ?>" class="card-img-top product-image" alt="<?php echo htmlspecialchars($product['Product_Name']); ?>">
-                        <?php else: ?>
-                            <img src="uploads/products/default.jpg" class="card-img-top product-image" alt="Default Product Image">
-                        <?php endif; ?>
-                        <div class="card-body">
-                            <h5 class="card-title"><?php echo htmlspecialchars($product['Product_Name']); ?></h5>
-                            <p class="card-text"><?php echo htmlspecialchars($product['Description']); ?></p>
-                            <p class="card-text">
-                                <strong>Price:</strong> $<?php echo number_format($product['Price'], 2); ?>
-                            </p>
-                            <p class="card-text">
-                                <strong>Stock:</strong> <?php echo $product['Stock']; ?> units
-                            </p>
-                            <a href="product_details.php?id=<?php echo $product['Product_ID']; ?>" class="btn btn-primary">View Details</a>
-                            <?php if(isset($_SESSION['customer_id'])): ?>
-                                <form method="POST" action="cart.php" class="d-inline">
-                                    <input type="hidden" name="product_id" value="<?php echo $product['Product_ID']; ?>">
-                                    <input type="hidden" name="action" value="add">
-                                    <button type="submit" class="btn btn-success">Add to Cart</button>
-                                </form>
-                            <?php endif; ?>
+    <div class="products-page">
+        <div class="container">
+            <h1 class="page-title">Our Products</h1>
+            
+            <div class="product-grid">
+                <?php foreach($products as $product): ?>
+                    <a href="product_details.php?id=<?php echo $product['Product_ID']; ?>" class="product-card">
+                        <img 
+                            src="<?php echo htmlspecialchars($product['Image_Path'] ?? 'uploads/products/default.jpg'); ?>" 
+                            class="product-image" 
+                            alt="<?php echo htmlspecialchars($product['Product_Name']); ?>"
+                        >
+                        <h2 class="product-name"><?php echo htmlspecialchars($product['Product_Name']); ?></h2>
+                        <div class="product-price">$<?php echo number_format($product['Price'], 2); ?></div>
+                        <div class="product-rating">
+                            <?php
+                            $rating = round($product['avg_rating'] ?? 0);
+                            for($i = 0; $i < 5; $i++) {
+                                echo $i < $rating ? '★' : '☆';
+                            }
+                            ?>
+                            <span class="rating-count">(<?php echo $product['review_count'] ?? 0; ?> reviews)</span>
                         </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
         </div>
     </div>
 

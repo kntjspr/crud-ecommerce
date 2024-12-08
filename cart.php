@@ -2,78 +2,78 @@
 session_start();
 require_once 'config/database.php';
 
-// Only redirect if not logged in as customer
-if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'customer') {
-    $_SESSION['redirect_after_login'] = $_SERVER['PHP_SELF']; // Store current page
-    header("Location: login.php");
-    exit();
-}
-
-// Initialize cart if it doesn't exist
-if (!isset($_SESSION['cart'])) {
-    $_SESSION['cart'] = [];
-}
-
-// Add to cart
-if (isset($_POST['action']) && $_POST['action'] === 'add') {
-    $product_id = (int)$_POST['product_id'];
-    $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
-    
-    // Check if product exists and has enough stock
-    $stmt = $pdo->prepare("SELECT Product_ID, Stock FROM Product WHERE Product_ID = ?");
-    $stmt->execute([$product_id]);
-    $product = $stmt->fetch();
-    
-    if ($product && $quantity <= $product['Stock']) {
-        if (isset($_SESSION['cart'][$product_id])) {
-            $_SESSION['cart'][$product_id] += $quantity;
-        } else {
-            $_SESSION['cart'][$product_id] = $quantity;
-        }
+// Handle add to cart
+if (isset($_POST['add_to_cart']) && isset($_SESSION['customer_id'])) {
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO Cart (Customer_ID, Product_ID, Quantity)
+            VALUES (:customer_id, :product_id, :quantity)
+            ON DUPLICATE KEY UPDATE Quantity = Quantity + VALUES(Quantity)
+        ");
         
-        // Check if quantity exceeds stock
-        if ($_SESSION['cart'][$product_id] > $product['Stock']) {
-            $_SESSION['cart'][$product_id] = $product['Stock'];
-        }
-    }
-    
-    header("Location: cart.php");
-    exit();
-}
-
-// Remove from cart
-if (isset($_GET['action']) && $_GET['action'] === 'remove' && isset($_GET['id'])) {
-    $product_id = (int)$_GET['id'];
-    unset($_SESSION['cart'][$product_id]);
-    header("Location: cart.php");
-    exit();
-}
-
-// Get cart items
-$cart_items = [];
-if (!empty($_SESSION['cart'])) {
-    $product_ids = array_keys($_SESSION['cart']);
-    $placeholders = str_repeat('?,', count($product_ids) - 1) . '?';
-    
-    $stmt = $pdo->prepare("
-        SELECT * FROM Product 
-        WHERE Product_ID IN ($placeholders)
-    ");
-    $stmt->execute($product_ids);
-    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($products as $product) {
-        $product_id = $product['Product_ID'];
-        $cart_items[] = array_merge($product, [
-            'Quantity' => $_SESSION['cart'][$product_id]
+        $stmt->execute([
+            ':customer_id' => $_SESSION['customer_id'],
+            ':product_id' => $_POST['product_id'],
+            ':quantity' => $_POST['quantity']
         ]);
+
+        $_SESSION['success_message'] = "Product added to cart successfully!";
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit();
+    } catch (Exception $e) {
+        $_SESSION['error_message'] = "Failed to add product to cart: " . $e->getMessage();
+        header("Location: " . $_SERVER['HTTP_REFERER']);
+        exit();
     }
 }
 
-// Calculate total
+// Handle remove from cart
+if (isset($_POST['remove_from_cart']) && isset($_SESSION['customer_id'])) {
+    try {
+        $stmt = $pdo->prepare("DELETE FROM Cart WHERE Customer_ID = ? AND Product_ID = ?");
+        $stmt->execute([$_SESSION['customer_id'], $_POST['product_id']]);
+        
+        $_SESSION['success_message'] = "Product removed from cart!";
+        header("Location: cart.php");
+        exit();
+    } catch (Exception $e) {
+        $_SESSION['error_message'] = "Failed to remove product: " . $e->getMessage();
+    }
+}
+
+// Handle update quantity
+if (isset($_POST['update_quantity']) && isset($_SESSION['customer_id'])) {
+    try {
+        $stmt = $pdo->prepare("UPDATE Cart SET Quantity = ? WHERE Customer_ID = ? AND Product_ID = ?");
+        $stmt->execute([$_POST['quantity'], $_SESSION['customer_id'], $_POST['product_id']]);
+        
+        $_SESSION['success_message'] = "Cart updated successfully!";
+        header("Location: cart.php");
+        exit();
+    } catch (Exception $e) {
+        $_SESSION['error_message'] = "Failed to update cart: " . $e->getMessage();
+    }
+}
+
+// Get cart items with product details
+$cart_items = [];
 $total = 0;
-foreach ($cart_items as $item) {
-    $total += $item['Price'] * $item['Quantity'];
+
+if (isset($_SESSION['customer_id'])) {
+    $stmt = $pdo->prepare("
+        SELECT c.*, p.Product_Name, p.Price, p.Stock,
+               (SELECT Image_Path FROM ProductImage pi WHERE pi.Product_ID = p.Product_ID LIMIT 1) as Image_Path
+        FROM Cart c
+        JOIN Product p ON c.Product_ID = p.Product_ID
+        WHERE c.Customer_ID = ?
+    ");
+    $stmt->execute([$_SESSION['customer_id']]);
+    $cart_items = $stmt->fetchAll();
+
+    // Calculate total
+    foreach ($cart_items as $item) {
+        $total += $item['Price'] * $item['Quantity'];
+    }
 }
 ?>
 
@@ -84,130 +84,188 @@ foreach ($cart_items as $item) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Shopping Cart - Shoepee</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f0f0f0;
+        }
+        .cart-page {
+            margin: 2rem auto;
+        }
+        .cart-header {
+            background-color: #f05537;
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .cart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .cart-item {
+            padding: 1rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+        .product-image {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            border-radius: 4px;
+        }
+        .product-name {
+            font-weight: 500;
+            color: #333;
+            text-decoration: none;
+        }
+        .product-name:hover {
+            color: #f05537;
+        }
+        .quantity-input {
+            width: 80px;
+        }
+        .item-price {
+            font-weight: 500;
+            color: #f05537;
+        }
+        .btn-primary {
+            background-color: #f05537;
+            border-color: #f05537;
+        }
+        .btn-primary:hover {
+            background-color: #d64426;
+            border-color: #d64426;
+        }
+        .cart-summary {
+            position: sticky;
+            top: 2rem;
+        }
+        .employee-notice {
+            padding: 2rem;
+        }
+        .employee-notice i {
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="index.php">Shoepee</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="index.php">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="products.php">Products</a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="cart.php">Cart</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="profile.php">Profile</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="logout.php">Logout</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <?php include 'navbar.php'; ?>
 
-    <div class="container mt-4">
-        <h1>Shopping Cart</h1>
-        
-        <?php if (empty($cart_items)): ?>
-            <div class="alert alert-info">
-                Your cart is empty. <a href="products.php">Continue shopping</a>
+    <div class="cart-page">
+        <div class="container">
+            <div class="cart-header">
+                <h2 class="m-0">Shopping Cart</h2>
+                <p class="mb-0">Review your items and proceed to checkout</p>
             </div>
-        <?php else: ?>
-            <div class="table-responsive">
-                <form id="cartForm" action="update_cart.php" method="POST">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Product</th>
-                                <th>Price</th>
-                                <th>Quantity</th>
-                                <th>Subtotal</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($cart_items as $item): ?>
-                                <tr>
-                                    <td>
-                                        <a href="product_details.php?id=<?php echo $item['Product_ID']; ?>">
-                                            <?php echo htmlspecialchars($item['Product_Name']); ?>
-                                        </a>
-                                    </td>
-                                    <td>$<?php echo number_format($item['Price'], 2); ?></td>
-                                    <td>
-                                        <div class="d-flex" style="max-width: 150px;">
-                                            <input type="number" 
-                                                   name="cart_items[<?php echo $item['Product_ID']; ?>]" 
-                                                   value="<?php echo $item['Quantity']; ?>" 
-                                                   min="0" 
-                                                   max="<?php echo $item['Stock']; ?>" 
-                                                   class="form-control me-2">
+
+            <?php if(isset($_SESSION['employee_id'])): ?>
+                <div class="cart-card text-center">
+                    <div class="employee-notice">
+                        <i class="bi bi-exclamation-circle text-warning" style="font-size: 3rem;"></i>
+                        <h4 class="mt-3">Employee Account Notice</h4>
+                        <p class="text-muted">Shopping cart and purchasing features are disabled for employee accounts.</p>
+                        <p class="text-muted mb-4">Please use a customer account to make purchases.</p>
+                        <div class="d-flex justify-content-center gap-2">
+                            <a href="products.php" class="btn btn-outline-primary">Browse Products</a>
+                            <a href="logout.php" class="btn btn-primary">Switch Account</a>
+                        </div>
+                    </div>
+                </div>
+            <?php elseif(!isset($_SESSION['customer_id'])): ?>
+                <div class="cart-card text-center">
+                    <h4>Please login to view your cart</h4>
+                    <p>You need to be logged in to manage your shopping cart.</p>
+                    <a href="login.php" class="btn btn-primary">Login</a>
+                </div>
+            <?php elseif(empty($cart_items)): ?>
+                <div class="cart-card text-center">
+                    <h4>Your cart is empty</h4>
+                    <p>Looks like you haven't added any items to your cart yet.</p>
+                    <a href="products.php" class="btn btn-primary">Continue Shopping</a>
+                </div>
+            <?php else: ?>
+                <div class="row">
+                    <!-- Cart Items -->
+                    <div class="col-md-8">
+                        <div class="cart-card">
+                            <?php foreach($cart_items as $item): ?>
+                                <div class="cart-item">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-2">
+                                            <img src="<?php echo htmlspecialchars($item['Image_Path'] ?? 'uploads/products/default.jpg'); ?>" 
+                                                 class="product-image" 
+                                                 alt="<?php echo htmlspecialchars($item['Product_Name']); ?>">
                                         </div>
-                                    </td>
-                                    <td>$<?php echo number_format($item['Price'] * $item['Quantity'], 2); ?></td>
-                                    <td>
-                                        <a href="cart.php?action=remove&id=<?php echo $item['Product_ID']; ?>" 
-                                           class="btn btn-danger btn-sm" 
-                                           onclick="return confirm('Are you sure you want to remove this item?')">
-                                            Remove
-                                        </a>
-                                    </td>
-                                </tr>
+                                        <div class="col-md-4">
+                                            <a href="product_details.php?id=<?php echo $item['Product_ID']; ?>" 
+                                               class="product-name">
+                                                <?php echo htmlspecialchars($item['Product_Name']); ?>
+                                            </a>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <form method="POST" class="d-flex align-items-center">
+                                                <input type="hidden" name="product_id" value="<?php echo $item['Product_ID']; ?>">
+                                                <input type="number" name="quantity" value="<?php echo $item['Quantity']; ?>" 
+                                                       min="1" max="<?php echo $item['Stock']; ?>" 
+                                                       class="form-control quantity-input me-2">
+                                                <button type="submit" name="update_quantity" class="btn btn-sm btn-primary">
+                                                    Update
+                                                </button>
+                                            </form>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <span class="item-price">
+                                                $<?php echo number_format($item['Price'] * $item['Quantity'], 2); ?>
+                                            </span>
+                                        </div>
+                                        <div class="col-md-1">
+                                            <form method="POST">
+                                                <input type="hidden" name="product_id" value="<?php echo $item['Product_ID']; ?>">
+                                                <button type="submit" name="remove_from_cart" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
                             <?php endforeach; ?>
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                <td><strong>$<?php echo number_format($total, 2); ?></strong></td>
-                                <td>
-                                    <button type="submit" class="btn btn-primary btn-sm">Update Cart</button>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </form>
-            </div>
-            
-            <div class="d-flex justify-content-between mt-4">
-                <a href="products.php" class="btn btn-secondary">Continue Shopping</a>
-                <a href="checkout.php" class="btn btn-primary">Proceed to Checkout</a>
-            </div>
-        <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Cart Summary -->
+                    <div class="col-md-4">
+                        <div class="cart-card cart-summary">
+                            <h4 class="mb-4">Order Summary</h4>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Subtotal</span>
+                                <span class="fw-bold">$<?php echo number_format($total, 2); ?></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span>Shipping</span>
+                                <span>Calculated at checkout</span>
+                            </div>
+                            <hr>
+                            <div class="d-flex justify-content-between mb-4">
+                                <span class="fw-bold">Total</span>
+                                <span class="fw-bold fs-5">$<?php echo number_format($total, 2); ?></span>
+                            </div>
+                            <div class="d-grid">
+                                <a href="checkout.php" class="btn btn-primary">Proceed to Checkout</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-    document.getElementById('cartForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        fetch('update_cart.php', {
-            method: 'POST',
-            body: new FormData(this)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.messages.join('\n'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error updating cart');
-        });
-    });
-    </script>
 </body>
 </html> 
