@@ -320,4 +320,3 @@ erDiagram
 10. Proper indexing on foreign keys and unique constraints
 11. Data validation through NOT NULL constraints
 12. Decimal precision for financial data (10,2)
-``` 
